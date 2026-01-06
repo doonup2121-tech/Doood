@@ -11,27 +11,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Theos (The Final Fix)
+      - name: Setup Theos (Complete)
         run: |
-          # تنظيف كامل للمكان عشان نتفادى أخطاء الصور 1158 و 1159
-          rm -rf $HOME/theos $HOME/sdks_temp
+          # تنظيف كامل للمسارات السابقة لضمان عدم التعارض
+          rm -rf $HOME/theos
           
-          # تحميل أداة التكويد (Theos)
-          git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
+          # تحميل Theos مع كل الأدوات الفرعية (بما فيها dm.pl)
+          git clone --recursive --depth=1 https://github.com/theos/theos.git $HOME/theos
           
-          # تحميل الـ SDKs المطلوبة فقط وبطريقة مضمونة
+          # تحميل الـ SDKs بشكل مباشر وسريع
           mkdir -p $HOME/theos/sdks
           curl -L https://github.com/theos/sdks/archive/master.tar.gz | tar -xz -C $HOME/theos/sdks --strip-components=1
           
-          # تعريف المسار النهائي
+          # تعريف مسار البيئة
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
       - name: Build Tweak
         run: |
-          # تنفيذ البناء مع التأكد من المسار
+          # بناء الملف مع تعريف المسار يدوياً لضمان النجاح
           make package FINALPACKAGE=1 THEOS=$HOME/theos
-        # الـ Makefile كدة هيشوف الملفات غصب عنه (حل صورة 1157)
-
+        
       - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
