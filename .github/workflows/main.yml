@@ -12,8 +12,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Theos
-        # تم تغيير الرابط للنسخة الرسمية المستقرة لحل خطأ Repository not found
-        uses: theos/setup-theos-action@v1.0.3
+        # ده الرابط الرسمي المحدث اللي هيحل مشكلة "Repository not found"
+        uses: theos/setup-theos-action@v1
 
       - name: Build Tweak
         run: |
@@ -22,7 +22,7 @@ jobs:
           THEOS: /opt/theos
 
       - name: Upload Result
-        # تم التحديث لـ v4 لحل مشكلة deprecation اللي في صورة 1148
+        # ده التحديث لنسخة v4 عشان يتخطى خطأ الـ Deprecation اللي ظهرلك
         uses: actions/upload-artifact@v4
         with:
           name: DooN_Wizard_Final
