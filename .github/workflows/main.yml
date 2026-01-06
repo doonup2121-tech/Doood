@@ -11,12 +11,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Theos
-        # استخدام النسخة الرسمية مع تحديد المسارات يدوياً لحل "Repository not found"
-        uses: theos/setup-theos-action@v1
-        with:
-          theos-src: https://github.com/theos/theos.git
-          theos-sdks: https://github.com/theos/sdks.git
+      - name: Install Theos Manually
+        run: |
+          sudo git clone --recursive https://github.com/theos/theos.git /opt/theos
+          curl -LO https://github.com/theos/sdks/archive/master.zip
+          unzip master.zip -d /opt/theos/sdks
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
+        # دي طريقة يدوية بتنزل الأدوات غصب عن أي خطأ في الروابط التلقائية
 
       - name: Build Tweak
         run: |
@@ -25,7 +26,6 @@ jobs:
           THEOS: /opt/theos
 
       - name: Upload Result
-        # v4 لحل مشكلة deprecation اللي في صورة 1148
         uses: actions/upload-artifact@v4
         with:
           name: DooN_Wizard_Final
