@@ -2,48 +2,52 @@
 #import <objc/runtime.h>
 #import <dlfcn.h>
 
-// وظيفة لإظهار تنبيه في أي وقت
-void showDoonAlert(NSString *title, NSString *message) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIWindowScene *scene = (UIWindowScene *)[[UIApplication sharedApplication].connectedScenes anyObject];
-        if (scene && scene.windows.count > 0) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:title 
-                                          message:message 
-                                          preferredStyle:1];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:0 handler:nil]];
-            [scene.windows.firstObject.rootViewController presentViewController:alert animated:YES completion:nil];
+// دالة سريعة لإظهار التنبيه - تم تصحيح الأنواع هنا
+void showFastAlert(NSString *msg) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive) {
+                    window = scene.windows.firstObject;
+                    break;
+                }
+            }
+        } else {
+            window = [UIApplication sharedApplication].keyWindow;
+        }
+
+        if (window && window.rootViewController) {
+            // تصحيح: استخدمنا UIAlertControllerStyleAlert بدلاً من رقم 1
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN UP ✅" 
+                                          message:msg 
+                                          preferredStyle:UIAlertControllerStyleAlert];
+            
+            // تصحيh: استخدمنا UIAlertActionStyleDefault بدلاً من رقم 0
+            UIAlertAction *ok = [UIAlertAction actionWithTitle:@"OK" 
+                                                         style:UIAlertActionStyleDefault 
+                                                       handler:nil];
+            [alert addAction:ok];
+            [window.rootViewController presentViewController:alert animated:YES completion:nil];
         }
     });
 }
 
-// الكود اللي هيتنفذ أول ما اللعبة تفتح
-__attribute__((constructor)) static void initDooN() {
-    // رسالة تأكيد الحقن
-    showDoonAlert(@"DooN UP", @"Tweak Loaded Successfully! ✅");
+__attribute__((constructor)) static void doonEntry() {
+    // ربط المكتبة اللي في الجذر
+    dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
 
-    // محاولة فتح المكتبة القديمة من "الجذر" مباشرة
-    // جربنا المسار المباشر اللي قولت عليه
-    void *handle = dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
-    
-    // لو منفعش، نجرب بالاسم بس لأنها في الجذر
-    if (!handle) handle = dlopen("wizardcrackv2.dylib", RTLD_NOW);
-
-    // استكمال التعديل بعد 4 ثواني لضمان تحميل اللعبة
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         Class wizardCls = objc_getClass("Wizard");
-        
         if (wizardCls) {
-            // تفعيل الباسورد والـ VIP
             class_replaceMethod(wizardCls, @selector(checkKey:), imp_implementationWithBlock(^BOOL(id self, SEL _cmd, NSString *input) {
                 return [input isEqualToString:@"12345"];
             }), "B@:@");
-
             class_replaceMethod(wizardCls, @selector(isKeyValid), imp_implementationWithBlock(^BOOL(id self){ return YES; }), "B@:");
             class_replaceMethod(wizardCls, @selector(isVip), imp_implementationWithBlock(^BOOL(id self){ return YES; }), "B@:");
-            
-            showDoonAlert(@"DooN Wizard", @"Hack Activated! ✅\nPass: 12345");
+            showFastAlert(@"Wizard Modded! ✅\nPass: 12345");
         } else {
-            showDoonAlert(@"DooN Error", @"Could not find 'Wizard' class. ❌");
+            showFastAlert(@"Tweak Injected! Class not found. ⚠️");
         }
     });
 }
