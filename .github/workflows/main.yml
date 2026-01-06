@@ -6,23 +6,26 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-13  # تحديد إصدار ماك مستقر
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Theos
-        # ده الرابط الرسمي المحدث اللي هيحل مشكلة "Repository not found"
+        # هذا هو الرابط الرسمي والوحيد الذي يعمل الآن
         uses: theos/setup-theos-action@v1
+        with:
+          theos-src: https://github.com/theos/theos.git
+          theos-sdks: https://github.com/theos/sdks.git
 
       - name: Build Tweak
         run: |
-          make package
+          make package FINALPACKAGE=1
         env:
           THEOS: /opt/theos
 
       - name: Upload Result
-        # ده التحديث لنسخة v4 عشان يتخطى خطأ الـ Deprecation اللي ظهرلك
+        # التحديث لـ v4 ضروري جداً لحل خطأ الصورة 1148
         uses: actions/upload-artifact@v4
         with:
           name: DooN_Wizard_Final
