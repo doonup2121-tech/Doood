@@ -6,17 +6,16 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13  # تحديد إصدار ماك مستقر
+    runs-on: macos-latest  # تغيير النظام لأحدث نسخة مدعومة لحل مشكلة retired images
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Theos
-        # هذا هو الرابط الرسمي والوحيد الذي يعمل الآن
+        # استخدام الرابط المباشر والأكثر استقراراً حالياً
         uses: theos/setup-theos-action@v1
         with:
           theos-src: https://github.com/theos/theos.git
-          theos-sdks: https://github.com/theos/sdks.git
 
       - name: Build Tweak
         run: |
@@ -25,7 +24,7 @@ jobs:
           THEOS: /opt/theos
 
       - name: Upload Result
-        # التحديث لـ v4 ضروري جداً لحل خطأ الصورة 1148
+        # استخدام v4 لحل مشكلة deprecation v3 تماماً
         uses: actions/upload-artifact@v4
         with:
           name: DooN_Wizard_Final
