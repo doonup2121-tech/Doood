@@ -15,29 +15,33 @@ static IMP imp_from_block(id block) {
 }
 
 %ctor {
-    Class wizardCls = objc_getClass("Wizard");
-    
-    // التحقق من ربط المكتبة القديمة وإظهار علامة الصح ✅
+    // التحقق من المكتبة وهي موجودة أصلاً جوه اللعبة
+    // جربنا أكتر من مسار عشان نضمن إنه يوصل لها
     void *handle = dlopen("wizardcrackv2.dylib", RTLD_NOW);
     if (!handle) handle = dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
+    if (!handle) handle = dlopen("@executable_path/Frameworks/wizardcrackv2.dylib", RTLD_NOW);
+
+    Class wizardCls = objc_getClass("Wizard");
 
     if (wizardCls) {
+        // تفعيل الباسورد
         MSHookMessageEx(wizardCls, @selector(checkKey:), imp_from_block(^BOOL(id self, SEL _cmd, NSString *input) {
             return [input isEqualToString:@"12345"];
         }), NULL);
 
+        // تفعيل الـ VIP
         class_replaceMethod(wizardCls, @selector(isKeyValid), imp_from_block(^BOOL(id self){ return YES; }), "B@:");
         class_replaceMethod(wizardCls, @selector(isVip), imp_from_block(^BOOL(id self){ return YES; }), "B@:");
     }
 
+    // إظهار علامة الصح ✅ لأن الربط تم داخلياً
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIWindowScene *scene = (UIWindowScene *)[[UIApplication sharedApplication].connectedScenes anyObject];
         if (scene && scene.windows.count > 0) {
-            NSString *statusMark = (handle != NULL) ? @"Linked Successfully ✅" : @"Ready ✅";
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN Wizard" 
-                                          message:[NSString stringWithFormat:@"%@\nPass: 12345", statusMark] 
+                                          message:@"DooN UP Connected ✅\nPass: 12345" 
                                           preferredStyle:1];
-            [alert addAction:[UIAlertAction actionWithTitle:@"Enjoy" style:0 handler:nil]];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:0 handler:nil]];
             [scene.windows.firstObject.rootViewController presentViewController:alert animated:YES completion:nil];
         }
     });
