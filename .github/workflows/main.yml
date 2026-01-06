@@ -1,0 +1,27 @@
+name: Build DooN Wizard
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Theos
+        uses: joysuun/setup-theos@main
+
+      - name: Build Tweak
+        run: |
+          make package
+        env:
+          THEOS: /opt/theos
+
+      - name: Upload Result
+        uses: actions/upload-artifact@v3
+        with:
+          name: DooN_Wizard_Final
+          path: .theos/obj/debug/*.dylib
