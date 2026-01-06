@@ -11,13 +11,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Theos Manually
+      - name: Setup Theos Fast
         run: |
-          sudo git clone --recursive https://github.com/theos/theos.git /opt/theos
-          curl -LO https://github.com/theos/sdks/archive/master.zip
-          unzip master.zip -d /opt/theos/sdks
+          git clone --depth=1 https://github.com/theos/theos.git /opt/theos
+          git clone --depth=1 https://github.com/theos/sdks.git /opt/theos/sdks
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
-        # دي طريقة يدوية بتنزل الأدوات غصب عن أي خطأ في الروابط التلقائية
+        # استخدمنا depth=1 عشان يحمل بسرعة جداً وما يفصلش (IMG_1154)
 
       - name: Build Tweak
         run: |
