@@ -12,8 +12,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Theos
-        # استخدام النسخة الرسمية والمستقرة من theos-action
-        uses: theos/setup-theos-action@v1.0.3
+        # استخدمنا النسخة الرسمية الصحيحة
+        uses: theos/setup-theos-action@v1
 
       - name: Build Tweak
         run: |
@@ -22,7 +22,7 @@ jobs:
           THEOS: /opt/theos
 
       - name: Upload Result
-        # تحديث إلى v4 لحل خطأ "deprecated version" (الصورة IMG_1148)
+        # حدثنا النسخة لـ v4 لحل مشكلة deprecation (صورة 1148)
         uses: actions/upload-artifact@v4
         with:
           name: DooN_Wizard_Final
