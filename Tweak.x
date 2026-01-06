@@ -16,7 +16,8 @@ static IMP imp_from_block(id block) {
 
 %ctor {
     Class wizardCls = objc_getClass("Wizard");
-    // التحقق من ربط المكتبة القديمة ✅
+    
+    // التحقق من ربط المكتبة القديمة وإظهار علامة الصح ✅
     void *handle = dlopen("wizardcrackv2.dylib", RTLD_NOW);
     if (!handle) handle = dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
 
@@ -32,9 +33,9 @@ static IMP imp_from_block(id block) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIWindowScene *scene = (UIWindowScene *)[[UIApplication sharedApplication].connectedScenes anyObject];
         if (scene && scene.windows.count > 0) {
-            NSString *msg = (handle != NULL) ? @"Linked Successfully ✅" : @"Modded Successfully ✅";
+            NSString *statusMark = (handle != NULL) ? @"Linked Successfully ✅" : @"Ready ✅";
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN Wizard" 
-                                          message:[NSString stringWithFormat:@"%@\nPass: 12345", msg] 
+                                          message:[NSString stringWithFormat:@"%@\nPass: 12345", statusMark] 
                                           preferredStyle:1];
             [alert addAction:[UIAlertAction actionWithTitle:@"Enjoy" style:0 handler:nil]];
             [scene.windows.firstObject.rootViewController presentViewController:alert animated:YES completion:nil];

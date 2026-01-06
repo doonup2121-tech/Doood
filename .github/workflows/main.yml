@@ -11,19 +11,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Signing Tools
+        run: |
+          # تثبيت أداة ldid لحل مشكلة صورة 1166 نهائياً
+          brew install ldid
+
       - name: Setup Theos Complete
         run: |
           rm -rf $HOME/theos
           git clone --recursive --depth=1 https://github.com/theos/theos.git $HOME/theos
           mkdir -p $HOME/theos/sdks
           curl -L https://github.com/theos/sdks/archive/master.tar.gz | tar -xz -C $HOME/theos/sdks --strip-components=1
-          # إضافة أدوات Theos لمسار النظام لحل مشكلة ldid (صورة 1165)
-          echo "$HOME/theos/bin" >> $GITHUB_PATH
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
       - name: Build Tweak
         run: |
-          # تنفيذ البناء النهائي
+          # تنفيذ البناء مع توقيع الملف تلقائياً
           make package FINALPACKAGE=1 THEOS=$HOME/theos
         
       - name: Upload Result
