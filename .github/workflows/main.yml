@@ -11,19 +11,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Theos (No Root Required)
+      - name: Setup Theos Clean
         run: |
+          # مسح أي ملفات قديمة عشان نتجنب خطأ IMG_1156
+          rm -rf ~/theos
           git clone --depth=1 https://github.com/theos/theos.git ~/theos
-          git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks
+          # تحميل الـ SDK في مكان مستقل لتجنب التعارض
+          git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks-tmp
+          mv ~/theos/sdks-tmp/* ~/theos/sdks/
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
-        # غيرنا المسار لـ ~/theos عشان نهرب من خطأ Permission denied اللي في صورة 1155
 
       - name: Build Tweak
         run: |
           make package FINALPACKAGE=1
         env:
-          THEOS: ${{ github.workspace }}/../theos 
-          # بنعرف الروبوت مكان الأدوات الجديد عشان يبدأ يطبخ الملف
+          THEOS: ${{ github.workspace }}/../theos
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
