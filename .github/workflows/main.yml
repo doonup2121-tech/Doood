@@ -9,10 +9,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Theos
-        uses: joysuun/setup-theos@main
+        uses: theos/setup-theos-action@v1
 
       - name: Build Tweak
         run: |
@@ -21,7 +21,7 @@ jobs:
           THEOS: /opt/theos
 
       - name: Upload Result
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: DooN_Wizard_Final
           path: .theos/obj/debug/*.dylib

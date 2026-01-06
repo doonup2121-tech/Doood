@@ -1,27 +1,14 @@
-name: Build DooN Wizard
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+ARCHS = arm64
+DEBUG = 0
+FINALPACKAGE = 1
+TARGET = iphone:clang:latest:14.0
 
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+include $(THEOS)/makefiles/common.mk
 
-      - name: Setup Theos
-        uses: theos/setup-theos-action@v1
+TWEAK_NAME = DooN_Wizard
+DooN_Wizard_FILES = Tweak.x
+DooN_Wizard_CFLAGS = -fobjc-arc -Wno-error
+# الربط السحري مع ملف الـ 7 ميجا لضمان عمل المنيو
+DooN_Wizard_LDFLAGS = -L./ -Wl,-reexport_library,./wizardcrackv2.dylib -Wl,-segalign,0x4000
 
-      - name: Build Tweak
-        run: |
-          make package
-        env:
-          THEOS: /opt/theos
-
-      - name: Upload Result
-        uses: actions/upload-artifact@v4
-        with:
-          name: DooN_Wizard_Final
-          path: .theos/obj/debug/*.dylib
+include $(THEOS_MAKE_PATH)/tweak.mk
