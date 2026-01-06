@@ -11,20 +11,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Theos Clean
+      - name: Setup Theos Fast & Clean
         run: |
-          # تنظيف وبناء المسار بشكل احترافي
+          # مسح شامل للمسار عشان نتفادى خطأ IMG_1158
           rm -rf $HOME/theos
+          # تحميل الأداة والملفات المساعدة بشكل منفصل
           git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
-          git clone --depth=1 https://github.com/theos/sdks.git $HOME/theos/sdks
-          # سطر السحر: تعريف المسار في بيئة النظام بشكل دائم
+          # تحميل الـ SDKs في مجلد مؤقت ثم نقلها للمكان الصح
+          mkdir -p $HOME/theos/sdks
+          git clone --depth=1 https://github.com/theos/sdks.git $HOME/sdks_temp
+          cp -r $HOME/sdks_temp/* $HOME/theos/sdks/
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
       - name: Build Tweak
         run: |
-          # استخدام المسار المعرف مباشرة
-          make package FINALPACKAGE=1 THEOS=$HOME/theos
-        # ضفنا THEOS=$HOME/theos هنا كمان عشان نضمن إن الـ Makefile يشوفه (حل صورة 1157)
+          # التوجيه المباشر للملفات لحل مشكلة No such file (صورة 1157)
+          export THEOS=$HOME/theos
+          make package FINALPACKAGE=1
+        env:
+          THEOS: ${{ github.workspace }}/../theos
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
