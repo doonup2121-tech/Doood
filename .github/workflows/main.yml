@@ -13,19 +13,18 @@ jobs:
 
       - name: Setup Theos Clean
         run: |
-          # مسح أي ملفات قديمة عشان نتجنب خطأ IMG_1156
-          rm -rf ~/theos
-          git clone --depth=1 https://github.com/theos/theos.git ~/theos
-          # تحميل الـ SDK في مكان مستقل لتجنب التعارض
-          git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks-tmp
-          mv ~/theos/sdks-tmp/* ~/theos/sdks/
+          # تنظيف وبناء المسار بشكل احترافي
+          rm -rf $HOME/theos
+          git clone --depth=1 https://github.com/theos/theos.git $HOME/theos
+          git clone --depth=1 https://github.com/theos/sdks.git $HOME/theos/sdks
+          # سطر السحر: تعريف المسار في بيئة النظام بشكل دائم
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
       - name: Build Tweak
         run: |
-          make package FINALPACKAGE=1
-        env:
-          THEOS: ${{ github.workspace }}/../theos
+          # استخدام المسار المعرف مباشرة
+          make package FINALPACKAGE=1 THEOS=$HOME/theos
+        # ضفنا THEOS=$HOME/theos هنا كمان عشان نضمن إن الـ Makefile يشوفه (حل صورة 1157)
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
