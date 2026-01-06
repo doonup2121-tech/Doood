@@ -6,16 +6,17 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest  # أحدث نظام تشغيل مدعوم
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Theos
-        # الرابط المباشر لتجنب خطأ "repository not found"
-        uses: theos/setup-theos-action@v1.0.3
+        # استخدام النسخة الرسمية مع تحديد المسارات يدوياً لحل "Repository not found"
+        uses: theos/setup-theos-action@v1
         with:
           theos-src: https://github.com/theos/theos.git
+          theos-sdks: https://github.com/theos/sdks.git
 
       - name: Build Tweak
         run: |
@@ -24,7 +25,7 @@ jobs:
           THEOS: /opt/theos
 
       - name: Upload Result
-        # التحديث لـ v4 ضروري جداً لتجنب خطأ Deprecated v3
+        # v4 لحل مشكلة deprecation اللي في صورة 1148
         uses: actions/upload-artifact@v4
         with:
           name: DooN_Wizard_Final
