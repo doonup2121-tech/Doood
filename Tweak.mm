@@ -37,7 +37,7 @@ __attribute__((constructor)) static void doonStrike() {
         if (!window) window = [UIApplication sharedApplication].windows.firstObject;
 
         if (window && window.rootViewController) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN Raid" 
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN tRaid" 
                                           message:@"Anti-Exit: ACTIVE ✅\nTry any code now." 
                                           preferredStyle:UIAlertControllerStyleAlert];
             [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
