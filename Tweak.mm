@@ -2,69 +2,46 @@
 #import <objc/runtime.h>
 #import <dlfcn.h>
 
-// دالة إظهار التنبيه بطريقة حديثة (متوافقة مع iOS 15 وصولاً لـ iOS 18.5)
-void showDoonWelcome(NSString *title, NSString *msg) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = nil;
-        for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive) {
-                for (UIWindow *w in scene.windows) {
-                    if (w.isKeyWindow) {
-                        window = w;
-                        break;
-                    }
+__attribute__((constructor)) static void doonTimeGlitch() {
+    // فتح مكتبة الهاك الأساسية
+    dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        
+        // 1. تزييف أي نص يظهر في القائمة (UI Label)
+        // بنعدل دالة setText في نظام الـ iOS نفسه عشان نصيد أي تاريخ طالع للواجهة
+        Method targetMethod = class_getInstanceMethod([UILabel class], @selector(setText:));
+        IMP originalImp = method_getImplementation(targetMethod);
+        
+        method_setImplementation(targetMethod, imp_implementationWithBlock(^(UILabel *self, NSString *text) {
+            // لو النص فيه نقط (شبه التاريخ) أو كلمة Expire أو Valid
+            if ([text containsString:@"."] && text.length > 8) {
+                text = @"Expiry: 01.01.2036 ✅"; // التاريخ الجديد بتاعك
+            }
+            
+            // استدعاء الدالة الأصلية عشان تعرض النص المعدل
+            ((void (*)(id, SEL, NSString *))originalImp)(self, @selector(setText:), text);
+        }));
+
+        // 2. ضمان إن الهاك يفضل شغال داخلياً (حتى لو التاريخ خلص)
+        Class cls = objc_getClass("Wizard");
+        if (cls) {
+            // إجبار دوال التحقق على إعطاء نتيجة إيجابية دائماً
+            SEL selectors[] = {@selector(isExpired), @selector(checkDevice), @selector(isVip)};
+            for (int i = 0; i < 3; i++) {
+                if (class_getInstanceMethod(cls, selectors[i])) {
+                    class_replaceMethod(cls, selectors[i], imp_implementationWithBlock(^BOOL(id self) {
+                        return (i == 0) ? NO : YES; // Expired = NO, Others = YES
+                    }), "B@:");
                 }
             }
         }
-        if (window && window.rootViewController) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:title 
-                                          message:msg 
-                                          preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [window.rootViewController presentViewController:alert animated:YES completion:nil];
-        }
-    });
-}
 
-// دالة إجبار الدوال على العمل (YES)
-void forceYes(Class cls) {
-    if (!cls) return;
-    unsigned int methodCount;
-    Method *methods = class_copyMethodList(cls, &methodCount);
-    for (unsigned int i = 0; i < methodCount; i++) {
-        SEL selector = method_getName(methods[i]);
-        const char *type = method_getTypeEncoding(methods[i]);
-        if (type && type[0] == 'B') { // استهداف دوال الـ BOOL
-            class_replaceMethod(cls, selector, imp_implementationWithBlock(^BOOL(id self, id arg1) {
-                return YES; 
-            }), type);
-        }
-    }
-    free(methods);
-}
-
-__attribute__((constructor)) static void startDoonStrike() {
-    // 1. محاولة ربط المكتبة القديمة
-    dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
-
-    // 2. إظهار رسالة الترحيب فوراً للتأكد من عمل المكتبة
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        showDoonWelcome(@"DooN Mod", @"Library Injected Successfully! ✅\nWaiting 4s to bypass password...");
-    });
-
-    // 3. تنفيذ الاختراق الشامل بعد 4 ثوانٍ
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        int numClasses = objc_getClassList(NULL, 0);
-        Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
-        numClasses = objc_getClassList(classes, numClasses);
-
-        for (int i = 0; i < numClasses; i++) {
-            NSString *name = NSStringFromClass(classes[i]);
-            if ([name.lowercaseString containsString:@"wizard"] || [name.lowercaseString containsString:@"menu"]) {
-                forceYes(classes[i]);
-                forceYes(object_getClass(classes[i]));
-            }
-        }
-        free(classes);
+        // رسالة تأكيد النجاح
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN Mode" 
+                                      message:@"Visuals Patched & Time Frozen! 🚀" 
+                                      preferredStyle:1];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Legendary" style:0 handler:nil]];
+        [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:alert animated:YES completion:nil];
     });
 }
