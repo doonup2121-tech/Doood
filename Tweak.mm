@@ -2,20 +2,50 @@
 #import <objc/runtime.h>
 #import <dlfcn.h>
 
-// دالة سحرية لحقن أي ميثود مجهول
-void forceEverything(Class cls) {
+// دالة إظهار التنبيه باستخدام الطريقة الحديثة المتوافقة مع iOS 13 وصولاً لـ iOS 18+
+void showFinalDoonAlert(NSString *title, NSString *msg) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = nil;
+        // حل مشكلة الصورة 1175: البحث عن النافذة بدون استخدام keyWindow المحذوف
+        for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow *w in scene.windows) {
+                    if (w.isKeyWindow) {
+                        window = w;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (window && window.rootViewController) {
+            // حل مشكلة الصورة 1170: استخدام الأسامي الكاملة بدلاً من الأرقام
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:title 
+                                          message:msg 
+                                          preferredStyle:UIAlertControllerStyleAlert];
+            
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" 
+                                              style:UIAlertActionStyleDefault 
+                                            handler:nil]];
+            
+            [window.rootViewController presentViewController:alert animated:YES completion:nil];
+        }
+    });
+}
+
+// الكود اللي بيضرب في كل مكان (God Mode)
+void applyUltimateHook(Class cls) {
     unsigned int methodCount;
     Method *methods = class_copyMethodList(cls, &methodCount);
     for (unsigned int i = 0; i < methodCount; i++) {
         SEL selector = method_getName(methods[i]);
-        NSString *name = NSStringFromSelector(selector);
+        NSString *name = NSStringFromSelector(selector).lowercaseString;
         
-        // لو اسم الدالة فيه أي كلمة من دول، افتحها فوراً
-        NSArray *targets = @[@"check", @"pass", @"key", @"vip", @"premium", @"valid", @"license", @"verify", @"status"];
+        NSArray *targets = @[@"check", @"pass", @"key", @"vip", @"premium", @"valid", @"license"];
         for (NSString *target in targets) {
-            if ([name.lowercaseString containsString:target]) {
+            if ([name containsString:target]) {
                 class_replaceMethod(cls, selector, imp_implementationWithBlock(^BOOL(id self, id arg1) {
-                    return YES; // الإجابة دايماً "نعم"
+                    return YES; // إرجاع "صح" لأي عملية فحص
                 }), "B@:@");
             }
         }
@@ -23,40 +53,25 @@ void forceEverything(Class cls) {
     free(methods);
 }
 
-__attribute__((constructor)) static void doonGodMode() {
-    // محاولة فتح المكتبة القديمة بكل الطرق الممكنة
+__attribute__((constructor)) static void startDoonEngine() {
+    // محاولة فتح المكتبة القديمة من جذر اللعبة
     dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
-    dlopen("wizardcrackv2.dylib", RTLD_NOW);
 
-    // اشتغل فوراً + بعد ثانية لضمان تخطي الحماية
-    void (^block)(void) = ^{
-        // 1. تفعيل كل الكلاسات المحتملة
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         int numClasses = objc_getClassList(NULL, 0);
         Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
         numClasses = objc_getClassList(classes, numClasses);
 
+        BOOL found = NO;
         for (int i = 0; i < numClasses; i++) {
             NSString *className = NSStringFromClass(classes[i]);
-            // استهداف الكلاسات اللي تبع الهاك أو اللعبة
-            if ([className containsString:@"Wizard"] || [className containsString:@"Menu"] || [className containsString:@"Cheat"]) {
-                forceEverything(classes[i]);
+            if ([className containsString:@"Wizard"] || [className containsString:@"Cheat"]) {
+                applyUltimateHook(classes[i]);
+                found = YES;
             }
         }
         free(classes);
-
-        // 2. إظهار رسالة النجاح
-        dispatch_async(dispatch_get_main_queue(), ^{
-            UIWindow *window = [UIApplication sharedApplication].keyWindow;
-            if (window.rootViewController) {
-                UIAlertController *a = [UIAlertController alertControllerWithTitle:@"DooN GOD MODE" 
-                                              message:@"All Engines Started! ✅\nEverything Unlocked." 
-                                              preferredStyle:1];
-                [a addAction:[UIAlertAction actionWithTitle:@"OK" style:0 handler:nil]];
-                [window.rootViewController presentViewController:a animated:YES completion:nil];
-            }
-        });
-    };
-
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), block);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), block);
+        
+        showFinalDoonAlert(@"DooN Status", found ? @"Hack Applied! ✅" : @"Tweak Loaded. 🚀");
+    });
 }
