@@ -3,7 +3,7 @@
 #import <mach-o/dyld.h>
 #import <mach/mach.h>
 
-// دالة البحث والتبديل في الذاكرة الحية (No Guessing)
+// دالة البحث والتبديل في الذاكرة الحية (Hex Patching)
 void doonHexBypass(const uint8_t *search, const uint8_t *replace, size_t len) {
     uintptr_t base = 0;
     for (uint32_t i = 0; i < _dyld_image_count(); i++) {
@@ -14,7 +14,6 @@ void doonHexBypass(const uint8_t *search, const uint8_t *replace, size_t len) {
     }
 
     if (base > 0) {
-        // مسح مساحة الذاكرة (2MB كافية جداً للنصوص)
         for (uintptr_t addr = base; addr < base + 0x200000; addr++) {
             if (memcmp((void *)addr, search, len) == 0) {
                 vm_protect(mach_task_self(), (vm_address_t)addr, len, NO, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
@@ -25,7 +24,6 @@ void doonHexBypass(const uint8_t *search, const uint8_t *replace, size_t len) {
 }
 
 __attribute__((constructor)) static void doonFinalStrike() {
-    // تحميل مكتبة الكراك
     dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -40,14 +38,18 @@ __attribute__((constructor)) static void doonFinalStrike() {
         const uint8_t newName[] = {0x44, 0x4F, 0x4F, 0x4E, 0x20, 0x20, 0x52, 0x41, 0x49, 0x44};
         doonHexBypass(oldName, newName, 10);
         
-        // 3. رسالة التفعيل (تم تصحيح الـ Style بوضع أرقام مباشرة 1 و 0)
-        UIWindowScene *scene = (UIWindowScene *)[[[UIApplication sharedApplication] connectedScenes] anyObject];
-        UIWindow *window = scene.windows.firstObject;
+        // 3. رسالة التفعيل مع التصحيح (Casting)
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
         if (window.rootViewController) {
+            // استخدام (UIAlertControllerStyle)1 و (UIAlertActionStyle)0 لحل مشكلة الـ Build
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN System" 
                                           message:@"Bypass Success! ✅\nAll Codes are Valid Until 2036" 
-                                          preferredStyle:1]; // 1 تعني Alert
-            [alert addAction:[UIAlertAction actionWithTitle:@"Start" style:0 handler:nil]]; // 0 تعني Default
+                                          preferredStyle:(UIAlertControllerStyle)1];
+            
+            [alert addAction:[UIAlertAction actionWithTitle:@"Start" 
+                                              style:(UIAlertActionStyle)0 
+                                              handler:nil]];
+            
             [window.rootViewController presentViewController:alert animated:YES completion:nil];
         }
     });
