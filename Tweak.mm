@@ -1,50 +1,38 @@
 #import <UIKit/UIKit.h>
-#import <dlfcn.h>
 #import <objc/runtime.h>
+#import <dlfcn.h>
 
-// تعريف الثوابت يدوياً لحل مشكلة الصورة 1188
 #ifndef RTLD_NOW
 #define RTLD_NOW 0x2
 #endif
 
-// خديعة الرد: إقناع المكتبة الوسيطة أن السيرفر وافق
-@interface NSURLResponse (DoonHack)
+// خديعة الرد: إيه بيانات ترجع، هنغيرها لبيانات "نجاح" وصلاحية أسبوع
+@interface NSURLSession (DoonFake)
 @end
 
-@implementation NSURLResponse (DoonHack)
-- (NSInteger)statusCode {
-    return 200; // إيه رد يجي، هنقول للمكتبة إنه "تمام" (OK)
+@implementation NSURLSession (DoonFake)
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *data, NSURLResponse *response, NSError *error))completionHandler {
+    
+    // تعريف الرد المزور اللي فيه صلاحية أسبوع (Expire in 7 days)
+    NSString *fakeResponse = @"{\"status\":\"success\", \"message\":\"Licensed\", \"expiry\":\"2026-01-14\", \"days_left\":7}";
+    NSData *fakeData = [fakeResponse dataUsingEncoding:NSUTF8StringEncoding];
+    
+    // صنع رد وهمي (200 OK) لحل مشكلة السيرفر
+    NSHTTPURLResponse *fakeURLResponse = [[NSHTTPURLResponse alloc] initWithURL:request.URL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:@{@"Content-Type": @"application/json"}];
+
+    // تنفيذ الـ Task بالبيانات المزورة بدل الأصلية
+    return [self dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        if (completionHandler) {
+            completionHandler(fakeData, (NSURLResponse *)fakeURLResponse, nil);
+        }
+    }];
 }
 @end
 
-__attribute__((constructor)) static void doonUltimateBypass() {
-    // 1. تحميل المنيو والمكتبة الوسيطة
-    // استخدمنا القيم الرقمية لضمان نجاح الـ Build في Xcode 16.4
-    void *h1 = dlopen("@executable_path/Frameworks/Wizard.framework/Wizard", 2);
-    void *h2 = dlopen("@executable_path/wizardcrackv2.dylib", 2);
-
-    if (h1 || h2) {
-        // 2. إظهار رسالة تأكيد النجاح بعد تخطي الـ 10 ثواني الحرجة
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(12.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            
-            UIWindow *activeWin = nil;
-            if (@available(iOS 13.0, *)) {
-                for (UIWindowScene *scene in (id)[UIApplication sharedApplication].connectedScenes) {
-                    if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == 0) {
-                        activeWin = scene.windows.firstObject;
-                        break;
-                    }
-                }
-            }
-            if (!activeWin) activeWin = [UIApplication sharedApplication].windows.firstObject;
-
-            if (activeWin.rootViewController) {
-                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN Bypass" 
-                                              message:@"Server Intercepted! ✅\nEnter any code to start." 
-                                              preferredStyle:UIAlertControllerStyleAlert];
-                [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                [activeWin.rootViewController presentViewController:alert animated:YES completion:nil];
-            }
-        });
-    }
+__attribute__((constructor)) static void doonStrikeFinal() {
+    // تحميل المكتبات مع حل مشكلة الـ identifier اللي في صوره 1188
+    dlopen("@executable_path/Frameworks/Wizard.framework/Wizard", RTLD_NOW);
+    dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
+    
+    NSLog(@"[DooN] License Spoofing: 7 Days Active ✅");
 }
