@@ -2,58 +2,59 @@
 #import <objc/runtime.h>
 #import <dlfcn.h>
 
-// دالة تعديل النصوص (الاسم والتاريخ) متوافقة مع iOS 18.5
-void applyDoonBranding() {
-    Method original = class_getInstanceMethod([UILabel class], @selector(setText:));
-    if (!original) return;
-    
-    IMP originalImp = method_getImplementation(original);
-    method_setImplementation(original, imp_implementationWithBlock(^(UILabel *self, NSString *text) {
-        if (text) {
-            // 1. تغيير اسم الهاك في القائمة
-            if ([text.lowercaseString containsString:@"pixel raid"]) {
-                text = @"DOON RAID IOS ✅";
+// دالة التبديل الإجباري - لا تعتمد على أسماء الكلاسات
+void forceDoonPatch() {
+    // 1. سيطرة كاملة على نصوص الواجهة (الاسم والتاريخ)
+    Method setText = class_getInstanceMethod([UILabel class], @selector(setText:));
+    if (setText) {
+        IMP originalImp = method_getImplementation(setText);
+        method_setImplementation(setText, imp_implementationWithBlock(^(UILabel *self, NSString *text) {
+            if (text && text.length > 0) {
+                // تبديل اسم الهاك فوراً
+                if ([text.lowercaseString containsString:@"pixel"] || [text.lowercaseString containsString:@"raid"]) {
+                    text = @"DOON RAID IOS ✅";
+                }
+                // تبديل التاريخ فوراً لـ 2036
+                if ([text containsString:@"202"] || [text.lowercaseString containsString:@"expire"]) {
+                    text = @"Key expire: 01.01.2036 00:00";
+                }
             }
-            // 2. تغيير تاريخ الانتهاء لـ 2036
-            if ([text containsString:@"202"] || [text containsString:@"Key expire"]) {
-                text = @"Key expire: 01.01.2036 00:00";
+            ((void (*)(id, SEL, NSString *))originalImp)(self, @selector(setText:), text);
+        }));
+    }
+
+    // 2. كسر حماية الـ VIP والجهاز (البحث عن الوظائف بالمعنى وليس بالاسم)
+    int numClasses = objc_getClassList(NULL, 0);
+    Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
+    numClasses = objc_getClassList(classes, numClasses);
+
+    for (int i = 0; i < numClasses; i++) {
+        unsigned int mCount;
+        Method *methods = class_copyMethodList(classes[i], &mCount);
+        for (unsigned int j = 0; j < mCount; j++) {
+            NSString *selName = NSStringFromSelector(method_getName(methods[j])).lowercaseString;
+            
+            // أي دالة بترجع Bool وليها علاقة بالأمان هيتم تعديلها
+            if ([selName containsString:@"expired"] || [selName containsString:@"device"] || [selName containsString:@"vip"]) {
+                class_replaceMethod(classes[i], method_getName(methods[j]), imp_implementationWithBlock(^BOOL(id self) {
+                    return [selName containsString:@"expired"] ? NO : YES;
+                }), "B@:");
             }
         }
-        ((void (*)(id, SEL, NSString *))originalImp)(self, @selector(setText:), text);
-    }));
+        free(methods);
+    }
+    free(classes);
 }
 
-__attribute__((constructor)) static void doonGlobalLaunch() {
-    // فتح المكتبة الأصلية
+// محرك التشغيل الأساسي
+__attribute__((constructor)) static void loadDoon() {
+    // تحميل مكتبة الهاك الأصلية أولاً
     dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
 
-    // تنفيذ التعديلات بعد 5 ثوانٍ لضمان ظهور القائمة
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        
-        applyDoonBranding();
-
-        // كسر الحماية داخلياً لأي كلاس (Pixel/Raid/Wizard)
-        int numClasses = objc_getClassList(NULL, 0);
-        Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
-        numClasses = objc_getClassList(classes, numClasses);
-
-        for (int i = 0; i < numClasses; i++) {
-            NSString *name = [NSString stringWithUTF8String:class_getName(classes[i])];
-            if ([name containsString:@"Pixel"] || [name containsString:@"Raid"] || [name containsString:@"Wizard"]) {
-                unsigned int mCount;
-                Method *methods = class_copyMethodList(classes[i], &mCount);
-                for (unsigned int j = 0; j < mCount; j++) {
-                    SEL s = method_getName(methods[j]);
-                    NSString *sName = NSStringFromSelector(s).lowercaseString;
-                    if ([sName containsString:@"expired"] || [sName containsString:@"vip"] || [sName containsString:@"device"]) {
-                        class_replaceMethod(classes[i], s, imp_implementationWithBlock(^BOOL(id self) {
-                            return [sName containsString:@"expired"] ? NO : YES;
-                        }), "B@:");
-                    }
-                }
-                free(methods);
-            }
-        }
-        free(classes);
-    });
+    // تكرار محاولة الحقن كل ثانية لضمان النجاح بعد تحميل القائمة
+    for (int t = 1; t <= 5; t++) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(t * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            forceDoonPatch();
+        });
+    }
 }
