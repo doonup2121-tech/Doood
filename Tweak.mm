@@ -2,46 +2,49 @@
 #import <objc/runtime.h>
 #import <dlfcn.h>
 
-__attribute__((constructor)) static void doonTimeGlitch() {
-    // فتح مكتبة الهاك الأساسية
-    dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
-
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        
-        // 1. تزييف أي نص يظهر في القائمة (UI Label)
-        // بنعدل دالة setText في نظام الـ iOS نفسه عشان نصيد أي تاريخ طالع للواجهة
-        Method targetMethod = class_getInstanceMethod([UILabel class], @selector(setText:));
-        IMP originalImp = method_getImplementation(targetMethod);
-        
-        method_setImplementation(targetMethod, imp_implementationWithBlock(^(UILabel *self, NSString *text) {
-            // لو النص فيه نقط (شبه التاريخ) أو كلمة Expire أو Valid
-            if ([text containsString:@"."] && text.length > 8) {
-                text = @"Expiry: 01.01.2036 ✅"; // التاريخ الجديد بتاعك
-            }
-            
-            // استدعاء الدالة الأصلية عشان تعرض النص المعدل
-            ((void (*)(id, SEL, NSString *))originalImp)(self, @selector(setText:), text);
-        }));
-
-        // 2. ضمان إن الهاك يفضل شغال داخلياً (حتى لو التاريخ خلص)
-        Class cls = objc_getClass("Wizard");
-        if (cls) {
-            // إجبار دوال التحقق على إعطاء نتيجة إيجابية دائماً
-            SEL selectors[] = {@selector(isExpired), @selector(checkDevice), @selector(isVip)};
-            for (int i = 0; i < 3; i++) {
-                if (class_getInstanceMethod(cls, selectors[i])) {
-                    class_replaceMethod(cls, selectors[i], imp_implementationWithBlock(^BOOL(id self) {
-                        return (i == 0) ? NO : YES; // Expired = NO, Others = YES
-                    }), "B@:");
-                }
+// دالة حديثة لإظهار الرسائل وتعديل الواجهة بدون keyWindow
+void doonPublicPatch(NSString *newDate) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *win = nil;
+        for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                win = scene.windows.firstObject; break;
             }
         }
+        
+        // تعديل أي نص (Label) يحتوي على تاريخ ليصبح 2036
+        Method original = class_getInstanceMethod([UILabel class], @selector(setText:));
+        IMP originalImp = method_getImplementation(original);
+        method_setImplementation(original, imp_implementationWithBlock(^(UILabel *self, NSString *text) {
+            if ([text containsString:@"202"]) { // صيد أي تاريخ يبدأ بـ 202
+                text = newDate; 
+            }
+            ((void (*)(id, SEL, NSString *))originalImp)(self, @selector(setText:), text);
+        }));
+        
+        if (win.rootViewController) {
+            UIAlertController *a = [UIAlertController alertControllerWithTitle:@"DooN Unlocked" message:@"Public Version: Activated Forever! ✅" preferredStyle:1];
+            [a addAction:[UIAlertAction actionWithTitle:@"Enjoy" style:0 handler:nil]];
+            [win.rootViewController presentViewController:a animated:YES completion:nil];
+        }
+    });
+}
 
-        // رسالة تأكيد النجاح
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DooN Mode" 
-                                      message:@"Visuals Patched & Time Frozen! 🚀" 
-                                      preferredStyle:1];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Legendary" style:0 handler:nil]];
-        [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:alert animated:YES completion:nil];
+__attribute__((constructor)) static void initDoonEngine() {
+    dlopen("@executable_path/wizardcrackv2.dylib", RTLD_NOW);
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        doonPublicPatch(@"Key expire: 01.01.2036 13:15");
+        
+        Class cls = objc_getClass("Wizard");
+        if (cls) {
+            // كسر الحماية للأبد ولأي جهاز
+            IMP yes = imp_implementationWithBlock(^BOOL(id s){ return YES; });
+            IMP no = imp_implementationWithBlock(^BOOL(id s){ return NO; });
+            
+            class_replaceMethod(cls, @selector(isExpired), no, "B@:");
+            class_replaceMethod(cls, @selector(checkDevice), yes, "B@:");
+            class_replaceMethod(cls, @selector(isVip), yes, "B@:");
+        }
     });
 }
