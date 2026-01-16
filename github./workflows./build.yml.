@@ -1,0 +1,32 @@
+name: Build Wizard Master Crack
+on:
+  workflow_dispatch: # ده بيخليك تشغل البناء بضغطة زرار يدوي
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: brew install ldid
+
+      - name: Setup Theos & SDK
+        run: |
+          git clone --recursive https://github.com/theos/theos.git $HOME/theos
+          curl -L https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz | tar -xJ -C $HOME/theos/sdks
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+
+      - name: Build My Tweak
+        run: |
+          # هنا بنقول للمصنع استخدم الثيوس وابني النسخة النهائية
+          make package FINALPACKAGE=1 THEOS=$HOME/theos
+        
+      - name: Save Crack Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wizard_Master_Final
+          path: |
+            ./packages/*.deb
+            .theos/obj/debug/*.dylib
