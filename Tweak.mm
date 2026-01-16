@@ -12,26 +12,31 @@
 
 // --- [1] المحاكاة الكاملة للهيكل وفقاً للمكتبة القديمة ---
 extern "C" {
-    // استخدام الـ Visibility Default لضمان ظهور الدوال للعبة
     #define WIZ_FIX __attribute__((visibility("default"))) void
     #define WIZ_BOOL __attribute__((visibility("default"))) bool
     #define WIZ_CF __attribute__((visibility("default"))) CFStringRef
 
-    // [إضافة]: تنفيذ دالة WriteValue فعلياً لأن الـ Stabilizer يعتمد عليها
+    // [تعديل أمان]: تنفيذ دالة WriteValue مع فحص النطاق لمنع الكراش اللحظي
     __attribute__((visibility("default"))) void _ZN6Wizard6Memory10WriteValueEmPvm(uintptr_t addr, void* val, size_t size) {
-        if (!addr || !val) return;
-        vm_protect(mach_task_self(), (vm_address_t)addr, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-        memcpy((void*)addr, val, size);
-        vm_protect(mach_task_self(), (vm_address_t)addr, size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+        // حماية: لو العنوان صفر أو في منطقة النظام المحمية (أقل من 0x100000000) لا تنفذ
+        if (addr < 0x100000000 || !val) return; 
+        
+        mach_port_t task = mach_task_self();
+        kern_return_t kr = vm_protect(task, (vm_address_t)addr, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+        
+        if (kr == KERN_SUCCESS) {
+            memcpy((void*)addr, val, size);
+            vm_protect(task, (vm_address_t)addr, size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+        }
     }
 
     // تنفيذ الدوال الأساسية لضمان عمل الـ Physics
     WIZ_FIX _ZN6Wizard4Pool11LongLineModEb(bool enable) {
         if (enable) {
             uintptr_t slide = _dyld_get_image_vmaddr_slide(0);
-            void* target = (void*)(slide + 0x1023A45C); 
+            uintptr_t target = slide + 0x1023A45C; 
             uint32_t patch = 0xD503201F; // NOP Instruction
-            _ZN6Wizard6Memory10WriteValueEmPvm((uintptr_t)target, &patch, 4);
+            _ZN6Wizard6Memory10WriteValueEmPvm(target, &patch, 4);
         }
     }
 
@@ -77,7 +82,7 @@ int new_stat(const char *path, struct stat *buf) {
     return old_stat(path, buf);
 }
 
-// --- [3] سيرفر المحاكاة (تعديل: إضافة الهيدرز المطابقة تماماً للأصل) ---
+// --- [3] سيرفر المحاكاة (مطابق تماماً لبروتوكول المكتبة القديمة) ---
 static void start_mirror_auth_server() {
     GCDWebServer* _webServer = [[GCDWebServer alloc] init];
     [_webServer addDefaultHandlerForMethod:@"GET" requestClass:[GCDWebServerRequest class] processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
@@ -94,7 +99,7 @@ static void start_mirror_auth_server() {
         [res setValue:@"application/json" forAdditionalHeader:@"Content-Type"];
         [res setValue:@"v2-wizard-signed-protocol" forAdditionalHeader:@"X-Wizard-Auth"];
         [res setValue:@"identity" forAdditionalHeader:@"Accept-Encoding"];
-        [res setValue:@"keep-alive" forAdditionalHeader:@"Connection"]; // إضافة الهيدر ده ضروري
+        [res setValue:@"keep-alive" forAdditionalHeader:@"Connection"]; 
         
         return res;
     }];
@@ -107,8 +112,8 @@ void run_internal_stabilizer() {
     uint32_t patch_nop = 0xD503201F; 
     unsigned long offsets[] = {0x1023A45C, 0x1023A460, 0x1023B110, 0x1055C124, 0x1044D218};
     for (int i=0; i<5; i++) {
-        void* target = (void*)(slide + offsets[i]);
-        _ZN6Wizard6Memory10WriteValueEmPvm((uintptr_t)target, &patch_nop, 4);
+        uintptr_t target = slide + offsets[i];
+        _ZN6Wizard6Memory10WriteValueEmPvm(target, &patch_nop, 4);
     }
 }
 
@@ -118,12 +123,13 @@ static void mirror_library_entry() {
     @autoreleasepool {
         start_mirror_auth_server();
         
-        // تأخير 1.2 ثانية هو الرقم السحري لضمان عدم الكراش في 8ball pool
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // [تعديل]: زيادة التأخير لـ 2.0 ثانية. 
+        // اللعبة بتكراش لو حاولنا نعدل الذاكرة وهي لسه بتحمل الـ Frameworks الأساسية.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             
             MSHookFunction((void*)dlsym(RTLD_DEFAULT, "stat"), (void*)new_stat, (void**)&old_stat);
             
-            // ترتيب الاستدعاءات كما في النسخة الأصلية بالضبط
+            // ترتيب الاستدعاءات كما في النسخة الأصلية
             _ZN6Wizard4Data15PushOffsetTableEv();
             _ZN6Wizard6Bridge18InitializeRuntimeEv();
             _ZN6Wizard8Security13BypassLicenseEPKc("WIZ-MASTER-MIRROR-2026");
@@ -135,10 +141,10 @@ static void mirror_library_entry() {
             
             run_internal_stabilizer();
 
-            // الإشعار الحاسم لفتح الـ Mod Menu
+            // الإشعار الذي يفتح الـ Menu
             [[NSNotificationCenter defaultCenter] postNotificationName:@"WizardSecurityPassedNotification" object:nil];
             
-            NSLog(@"[WizardNew] 100%% Matched Replacement Active.");
+            NSLog(@"[WizardNew] Stable & Active. Replaced old dylib logic.");
         });
     }
 }
