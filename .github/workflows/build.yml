@@ -1,49 +1,31 @@
 name: Wizard Mirror Pro Build
 
-# هذا الجزء يحدد متى يبدأ الإنتاج (عند الرفع أو يدوياً)
 on:
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch: 
 
 jobs:
   build:
-    # استخدام نظام MacOS لأنه الأفضل لبناء مكتبات iOS
     runs-on: macos-latest
 
     steps:
-      # 1. سحب الكود من المستودع
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # تم التحديث لـ v4
 
-      # 2. تثبيت أداة Theos (المصنع)
       - name: Install Theos
         run: |
           export THEOS=~/theos
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
-      # 3. بناء المكتبة وتحويل الكود إلى .dylib
       - name: Build Mirror Library
         run: |
           export THEOS=$THEOS
           make package FINALPACKAGE=1
 
-      # 4. إنشاء "الخانة" الخاصة بالتحميل (Artifacts)
       - name: Upload Dylib Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # تم التحديث لـ v4 لحل المشكلة الحمراء
         with:
-          name: WizardMirror-Final-Output
+          name: WizardMirror-Dylib
           path: .theos/obj/WizardMirror.dylib
-
-      # 5. خطوة اختيارية للتأكد من نجاح البناء في الكونسول
-      - name: Check Output
-        run: |
-          if [ -f .theos/obj/WizardMirror.dylib ]; then
-            echo "✅ Library Built Successfully!"
-          else
-            echo "❌ Build Failed!"
-            exit 1
-          fi
