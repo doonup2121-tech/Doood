@@ -5,7 +5,7 @@
 #import <dlfcn.h>
 #import <substrate.h>
 #import <sys/stat.h>
-#import "GCDWebServer.h"
+#import <GCDWebServer/GCDWebServer.h>
 #import "GCDWebServerDataResponse.h"
 
 // --- [1] استيراد كافة رموز المكتبة حرفياً كما في النسخ السابقة ---
