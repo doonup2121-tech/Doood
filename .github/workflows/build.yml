@@ -18,7 +18,6 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install ldid dpkg
-          # تثبيت أدوات التوقيع والتحزيم
 
       - name: Setup Theos
         run: |
@@ -27,12 +26,16 @@ jobs:
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
           echo "/opt/theos/bin" >> $GITHUB_PATH
 
-      # --- [الحل المضمون والجذري للـ SDK] ---
-      - name: Download iOS SDK (Stable Repo)
+      # --- [الحل الأخير والمضمون للـ SDK] ---
+      - name: Download iOS SDK (High Stability)
         run: |
-          # سحب الـ SDK من المستودع الأكثر ثباتاً في عالم Theos
-          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks
-          # هذا الأمر يسحب آخر نسخة من الـ SDKs بدون تاريخ الملفات الطويل ليكون سريعاً جداً
+          # نستخدم مستودع أسرع وأخف مخصص لعمليات البناء التلقائي
+          mkdir -p $THEOS/sdks
+          curl -L https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          unzip -q sdks.zip
+          mv sdks-master/*.sdk $THEOS/sdks/
+          rm -rf sdks-master sdks.zip
+          # هذا الأمر يضمن تحميل كافة ملفات الـ SDK بصيغة مضغوطة لتجنب انقطاع التنزيل
 
       - name: Ensure GCDWebServer exists
         run: |
