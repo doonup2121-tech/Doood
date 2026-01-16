@@ -1,4 +1,5 @@
 name: Wizard Mirror Pro Build
+
 on:
   push:
     branches: [ main ]
@@ -7,35 +8,41 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Theos & SDK
+      - name: Install Theos & SDK (Stable Git Method)
         run: |
-          git clone --recursive https://github.com/theos/theos.git ~/theos
-          mkdir -p ~/theos/sdks
-          curl -L "https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz" -o ~/theos/sdks/sdk.tar.xz
-          tar -xf ~/theos/sdks/sdk.tar.xz -C ~/theos/sdks/
+          export THEOS=~/theos
+          # تحميل الثيوس
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          
+          # تحميل الـ SDK (أضمن رابط جربناه)
+          mkdir -p $THEOS/sdks
+          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks_repo
+          mv $THEOS/sdks_repo/iPhoneOS14.5.sdk $THEOS/sdks/
+          
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
-      - name: Inject Missing GCDWebServer (الحل هنا)
+      - name: Inject GCDWebServer (Auto-Download)
         run: |
-          # سحب المكتبة لو مش موجودة أو ناقصة
+          # مسح أي مخلفات قديمة وتحميل نسخة نظيفة من السيرفر
           rm -rf GCDWebServer
           git clone https://github.com/swisspol/GCDWebServer.git GCDWebServer_Temp
           mkdir -p GCDWebServer
-          # نقل الملفات الأساسية فقط للمجلد
           cp -r GCDWebServer_Temp/GCDWebServer/Core/. GCDWebServer/
           rm -rf GCDWebServer_Temp
 
-      - name: Build
+      - name: Build Mirror Library
         run: |
           export THEOS=~/theos
-          make clean package FINALPACKAGE=1
+          make clean
+          make package FINALPACKAGE=1
 
-      - name: Upload
+      - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Fixed-Build
+          name: WizardMirror-Final-Build
           path: .theos/obj/WizardMirror.dylib
