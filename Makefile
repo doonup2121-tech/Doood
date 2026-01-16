@@ -1,3 +1,4 @@
+# إعدادات النظام والـ SDK
 TARGET := iphone:clang:14.5:14.0
 ARCHS = arm64 arm64e
 DEBUG = 0
@@ -7,12 +8,13 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = WizardMirror
 
-# جمع ملفات المشروع
+# الحل: جمع ملف التويك وكل ملفات السيرفر (.m) من داخل مجلد GCDWebServer
 WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m)
+
+# الحل: إضافة مسار المجلد للبحث عن ملفات الـ Header (.h)
+WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -IGCDWebServer
+
 WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork
 WizardMirror_LIBRARIES = substrate
-
-# مسارات الـ Headers
-WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -IGCDWebServer
 
 include $(THEOS)/makefiles/library.mk
