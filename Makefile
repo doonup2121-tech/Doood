@@ -1,4 +1,4 @@
-# إعدادات الهدف
+# إعدادات الهدف (كما هي)
 TARGET := iphone:clang:14.5:14.0
 ARCHS = arm64 arm64e
 DEBUG = 0
@@ -15,18 +15,25 @@ LIBRARY_NAME = WizardMirror
 
 WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m)
 
-# الحل الذي جعل الربط (Linking) ينجح في صورك
-WizardMirror_LDFLAGS = -Wl,-not_for_dyld_shared_cache \
-                       -Wl,-undefined,dynamic_lookup
+# [تعديل 1]: إضافة علم الاستقرار والدمج الكامل (بدون تغيير القديم)
+WizardMirror_LDFLAGS += -Wl,-not_for_dyld_shared_cache \
+                       -Wl,-undefined,dynamic_lookup \
+                       -all_load \
+                       -Xlinker -unexported_symbol -Xlinker .objc_category_name_GCDWebServer*
 
-WizardMirror_CFLAGS = -fobjc-arc \
+# [تعديل 2]: إضافة الفريموركات الناقصة اللي بتسبب كراش للـ WebServer والاتصال
+WizardMirror_FRAMEWORKS += UIKit Foundation Security CFNetwork MobileCoreServices SystemConfiguration
+
+# [تعديل 3]: تحسينات السي بلس بلس لضمان مطابقة بنية المكتبة القديمة
+WizardMirror_CFLAGS += -fobjc-arc \
                       -Wno-deprecated-declarations \
                       -Wno-unused-variable \
                       -Wno-unused-function \
-                      -IGCDWebServer -I.
+                      -IGCDWebServer -I. \
+                      -O3 \
+                      -fvisibility=default
 
-WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork
-WizardMirror_LIBRARIES = substrate
+WizardMirror_LIBRARIES += substrate
 
 include $(THEOS)/makefiles/library.mk
 
