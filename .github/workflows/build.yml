@@ -13,32 +13,27 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Dependencies (Fix ldid error)
+      - name: Install ldid (Fix Error 127)
+        run: brew install ldid dpkg
+
+      - name: Setup Theos
         run: |
-          # تثبيت الأدوات المفقودة التي تسببت في الخطأ Error 127 في صورك
-          brew install ldid dpkg
-          
-      - name: Install Theos & SDK
-        run: |
-          export THEOS=~/theos
-          git clone --recursive https://github.com/theos/theos.git $THEOS
-          
-          # تحميل الـ SDK بطريقة أضمن (تجنب خطأ المسارات)
-          mkdir -p $THEOS/sdks
-          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks_temp
-          # نسخ كل ما ينتهي بـ .sdk لضمان وجود 14.5 وغيره
-          cp -r $THEOS/sdks_temp/*.sdk $THEOS/sdks/
-          rm -rf $THEOS/sdks_temp
-          
+          git clone --recursive https://github.com/theos/theos.git ~/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
           echo "$HOME/theos/bin" >> $GITHUB_PATH
 
+      - name: Download SDK (Fix Error 8:39)
+        run: |
+          # بدلاً من cp الذي فشل، سنحمل الملف مباشرة
+          mkdir -p ~/theos/sdks
+          curl -LO https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz
+          tar -xf iPhoneOS14.5.sdk.tar.xz -C ~/theos/sdks/
+          rm iPhoneOS14.5.sdk.tar.xz
+
       - name: Inject GCDWebServer
         run: |
-          rm -rf GCDWebServer
           git clone --depth=1 https://github.com/swisspol/GCDWebServer.git Temp
           mkdir -p GCDWebServer
-          # نسخ الملفات الأساسية للسيرفر
           cp -r Temp/GCDWebServer/Core/. GCDWebServer/
           cp -r Temp/GCDWebServer/Requests/. GCDWebServer/
           cp -r Temp/GCDWebServer/Responses/. GCDWebServer/
@@ -46,20 +41,12 @@ jobs:
 
       - name: Build Mirror Library
         run: |
-          # تعيين المتغيرات محلياً للتأكيد
-          export THEOS=$HOME/theos
-          # تخطي خطأ التوقيع في حال تعذر الوصول لـ ldid (احتياط إضافي)
-          export Codesign=/usr/bin/true
-          
+          export THEOS=~/theos
           make clean
-          # لاحظ استخدمنا "make" فقط لأننا نريد الـ dylib وليس ملف deb
           make FINALPACKAGE=1
-        env:
-          THEOS: ${{ github.workspace }}/../theos
 
-      - name: Upload Artifact
+      - name: Upload Final Dylib
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Final-Build
-          # المسار الصحيح للملف الناتج كما ظهر في سجلاتك
+          name: WizardMirror-Final
           path: .theos/obj/*/*.dylib
