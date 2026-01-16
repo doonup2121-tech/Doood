@@ -1,4 +1,5 @@
 name: Wizard Mirror Pro Build
+
 on:
   push:
     branches: [ main ]
@@ -7,39 +8,45 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Theos & SDK (Manual Clone)
+      - name: Install Theos & SDK (Stable Git Method)
         run: |
           export THEOS=~/theos
+          # تحميل الثيوس
           git clone --recursive https://github.com/theos/theos.git $THEOS
+          
+          # تحميل الـ SDK (النسخة اللي اشتغلت معاك 14.5)
           mkdir -p $THEOS/sdks
           git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks_repo
           mv $THEOS/sdks_repo/iPhoneOS14.5.sdk $THEOS/sdks/
+          
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
-      - name: Inject GCDWebServer (Clean Fix)
+      - name: Inject GCDWebServer (Fix Missing Headers)
         run: |
-          # تنظيف أي نسخ قديمة وتحميل السيرفر بالكامل
+          # تنظيف أي مجلد قديم وتحميل المكتبة من المصدر
           rm -rf GCDWebServer
-          git clone --depth=1 https://github.com/swisspol/GCDWebServer.git TempGCD
+          git clone --depth=1 https://github.com/swisspol/GCDWebServer.git Temp
           mkdir -p GCDWebServer
-          cp -r TempGCD/GCDWebServer/Core/. GCDWebServer/
-          # إضافة ملفات الاستجابة اللي كان بيشتكي منها
-          cp -r TempGCD/GCDWebServer/Requests/. GCDWebServer/
-          cp -r TempGCD/GCDWebServer/Responses/. GCDWebServer/
-          rm -rf TempGCD
+          # نقل الملفات الأساسية والمطلوبة للبناء
+          cp -r Temp/GCDWebServer/Core/. GCDWebServer/
+          cp -r Temp/GCDWebServer/Requests/. GCDWebServer/
+          cp -r Temp/GCDWebServer/Responses/. GCDWebServer/
+          rm -rf Temp
 
       - name: Build Mirror Library
         run: |
           export THEOS=~/theos
+          # تنظيف الملفات المؤقتة وبدء البناء النهائي
           make clean
           make package FINALPACKAGE=1
 
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Ultimate-Build
+          name: WizardMirror-Final-Build
           path: .theos/obj/WizardMirror.dylib
