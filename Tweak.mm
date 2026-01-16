@@ -10,38 +10,38 @@
 #import "GCDWebServer.h"
 #import "GCDWebServerDataResponse.h"
 
-// --- [تعديل الأمان] تعريف أجسام الدوال لمنع خطأ Symbol Not Found ---
-// تم إضافة هذه الأجسام لضمان أن المترجم يجد "كود" للدوال التي استخرجناها من المكتبة
+// --- [تعديل الأمان النهائي] تعريف الدوال كـ Weak لمنع توقف البناء ---
+// تم استخدام __attribute__((weak)) لضمان تخطي فحص المترجم وقت البناء في GitHub
 extern "C" {
-    void _ZN6Wizard8Security11VerifyLocalEv() {}
-    void _ZN6Wizard8Security13BypassLicenseEPKc(const char* key) {}
-    void _ZN6Wizard8Security14SetPremiumModeEb(bool enabled) {}
-    void _ZN6Wizard8Security15VerifySignatureEv() {}
-    void _ZN6Wizard8Security11ForceSignedEb(bool en) {}
-    void _ZN6Wizard8Security13SpoofAppStoreEv() {}
-    void _ZN6Wizard8Security9FakeTokenEv() {}
-    void _ZN6Wizard8Security15ClearDeviceIdentityEv() {}
-    void _ZN6Wizard4Pool15EnableGuidelineEb(bool enable) {}
-    void _ZN6Wizard4Pool11LongLineModEb(bool enable) {}
-    void _ZN6Wizard4Pool16PredictCollisionEv() {}
-    void _ZN6Wizard4Pool12ForceDrawRayEv() {}
-    void _ZN6Wizard4Pool10SetCuePowerEf(float power) {}
-    void _ZN6Wizard4Pool13ShowTableGridEb(bool enable) {}
-    void _ZN6Wizard4Pool8AutoShotEv() {}
-    void _ZN6Wizard4Pool10AutoQueueEv() {}
-    void _ZN6Wizard8Security22KillSecurityThreadsEv() {}
-    void _ZN6Wizard8Security12EnableStealthEb(bool enabled) {}
-    void _ZN6Wizard8Security18DisableIntegrityEv() {}
-    void _ZN6Wizard8Security15SpoofDeviceGUIDEv() {}
-    void _ZN6Wizard6Memory11RemapRegionEPvm(void* addr, size_t size) {}
-    void _ZN6Wizard6Memory10WriteValueEmPvm(uintptr_t addr, void* val, size_t size) {}
-    void _ZN6Wizard4Core11PatchStaticEv() {}
-    void _ZN6Wizard4Core7ShieldEv() {}
-    void _ZN6Wizard6Bridge18InitializeRuntimeEv() {}
-    void _ZN6Wizard4Data15PushOffsetTableEv() {}
-    void _ZN6Wizard8Security14ValidateBinaryEv() {} 
-    CFStringRef _ZN6Wizard8Security10GetFileMD5Ev() { return CFSTR("e99a18c428cb38d5f260853678922e03"); }
-    bool _ZN6Wizard8Security11IsConnectedEv() { return true; }
+    __attribute__((weak)) void _ZN6Wizard8Security11VerifyLocalEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security13BypassLicenseEPKc(const char* key) {}
+    __attribute__((weak)) void _ZN6Wizard8Security14SetPremiumModeEb(bool enabled) {}
+    __attribute__((weak)) void _ZN6Wizard8Security15VerifySignatureEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security11ForceSignedEb(bool en) {}
+    __attribute__((weak)) void _ZN6Wizard8Security13SpoofAppStoreEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security9FakeTokenEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security15ClearDeviceIdentityEv() {}
+    __attribute__((weak)) void _ZN6Wizard4Pool15EnableGuidelineEb(bool enable) {}
+    __attribute__((weak)) void _ZN6Wizard4Pool11LongLineModEb(bool enable) {}
+    __attribute__((weak)) void _ZN6Wizard4Pool16PredictCollisionEv() {}
+    __attribute__((weak)) void _ZN6Wizard4Pool12ForceDrawRayEv() {}
+    __attribute__((weak)) void _ZN6Wizard4Pool10SetCuePowerEf(float power) {}
+    __attribute__((weak)) void _ZN6Wizard4Pool13ShowTableGridEb(bool enable) {}
+    __attribute__((weak)) void _ZN6Wizard4Pool8AutoShotEv() {}
+    __attribute__((weak)) void _ZN6Wizard4Pool10AutoQueueEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security22KillSecurityThreadsEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security12EnableStealthEb(bool enabled) {}
+    __attribute__((weak)) void _ZN6Wizard8Security18DisableIntegrityEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security15SpoofDeviceGUIDEv() {}
+    __attribute__((weak)) void _ZN6Wizard6Memory11RemapRegionEPvm(void* addr, size_t size) {}
+    __attribute__((weak)) void _ZN6Wizard6Memory10WriteValueEmPvm(uintptr_t addr, void* val, size_t size) {}
+    __attribute__((weak)) void _ZN6Wizard4Core11PatchStaticEv() {}
+    __attribute__((weak)) void _ZN6Wizard4Core7ShieldEv() {}
+    __attribute__((weak)) void _ZN6Wizard6Bridge18InitializeRuntimeEv() {}
+    __attribute__((weak)) void _ZN6Wizard4Data15PushOffsetTableEv() {}
+    __attribute__((weak)) void _ZN6Wizard8Security14ValidateBinaryEv() {} 
+    __attribute__((weak)) CFStringRef _ZN6Wizard8Security10GetFileMD5Ev() { return CFSTR("e99a18c428cb38d5f260853678922e03"); }
+    __attribute__((weak)) bool _ZN6Wizard8Security11IsConnectedEv() { return true; }
 }
 
 // --- [2] نظام الهوكات العميقة (Stealth & Anti-Detection) كما هو في كودك ---
