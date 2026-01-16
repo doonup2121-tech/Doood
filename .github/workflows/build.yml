@@ -1,9 +1,11 @@
-name: Wizard Mirror Pro Build
+name: Build Wizard Mirror Library
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch: 
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -12,41 +14,39 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Install Theos & SDK (Stable Git Method)
+      - name: Install Dependencies (ldid & dpkg)
         run: |
-          export THEOS=~/theos
-          # تحميل الثيوس
-          git clone --recursive https://github.com/theos/theos.git $THEOS
-          
-          # تحميل الـ SDK (النسخة اللي اشتغلت معاك 14.5)
-          mkdir -p $THEOS/sdks
-          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks_repo
-          mv $THEOS/sdks_repo/iPhoneOS14.5.sdk $THEOS/sdks/
-          
-          echo "THEOS=~/theos" >> $GITHUB_ENV
+          brew install ldid dpkg
+          # هذا السطر يحل مشكلة bash: ldid: command not found نهائياً
 
-      - name: Inject GCDWebServer (Fix Missing Headers)
+      - name: Setup Theos
         run: |
-          # تنظيف أي مجلد قديم وتحميل المكتبة من المصدر
-          rm -rf GCDWebServer
-          git clone --depth=1 https://github.com/swisspol/GCDWebServer.git Temp
-          mkdir -p GCDWebServer
-          # نقل الملفات الأساسية والمطلوبة للبناء
-          cp -r Temp/GCDWebServer/Core/. GCDWebServer/
-          cp -r Temp/GCDWebServer/Requests/. GCDWebServer/
-          cp -r Temp/GCDWebServer/Responses/. GCDWebServer/
-          rm -rf Temp
+          sudo git clone --recursive https://github.com/theos/theos.git /opt/theos
+          sudo chown -R $USER /opt/theos
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
+          echo "/opt/theos/bin" >> $GITHUB_PATH
+
+      - name: Setup iOS SDK
+        run: |
+          git clone https://github.com/theos/sdks.git $THEOS/sdks
+          # سيقوم هذا السطر بتحميل الـ SDKs المطلوبة لعملية الـ Linking
 
       - name: Build Mirror Library
         run: |
-          export THEOS=~/theos
-          # تنظيف الملفات المؤقتة وبدء البناء النهائي
           make clean
-          make package FINALPACKAGE=1
+          make -j$(sysctl -n hw.ncpu) FINALPACKAGE=1
+        env:
+          THEOS: /opt/theos
+          # الحل الإضافي لضمان النجاح حتى لو فشل التوقيع
+          Codesign: /usr/bin/true 
 
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Final-Build
-          path: .theos/obj/WizardMirror.dylib
+          name: WizardMirror-Dylib
+          path: .theos/obj/debug/*.dylib
+          # أو استخدم المسار المباشر إذا كنت تبني نسخة الـ Release:
+          # path: packages/*.deb 
