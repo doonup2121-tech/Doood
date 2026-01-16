@@ -39,7 +39,12 @@ extern "C" {
     #define WIZ_BOOL __attribute__((visibility("default"))) bool
     #define WIZ_CF __attribute__((visibility("default"))) CFStringRef
 
-    // [إضافات حيوية جديدة]: رموز النوع والأسماء (المكتبة القديمة كانت تنادي عليها)
+    // [إضافات صامتة]: منع ظهور واجهة التحقق برمجياً
+    WIZ_BOOL _ZN6Wizard8Security10NeedsVerifyEv() { return false; }
+    WIZ_BOOL _ZN6Wizard8Security15IsLicenseActiveEv() { return true; }
+    WIZ_BOOL _ZN6Wizard8Security11IsBypassedEv() { return true; }
+
+    // [إضافات حيوية]: رموز النوع والأسماء (المكتبة القديمة كانت تنادي عليها)
     WIZ_FIX _ZTI6Wizard4PoolE() {} 
     WIZ_FIX _ZTI6Wizard8SecurityE() {}
     WIZ_FIX _ZTI6Wizard4MathE() {}
@@ -120,6 +125,18 @@ void* new_dlsym(void* handle, const char* symbol) {
     return old_dlsym(handle, symbol);
 }
 
+// هوك لمنع ظهور واجهة التحقق إذا حاولت اللعبة استدعاءها
+static void (*old_viewDidAppear)(UIViewController* self, SEL _cmd, BOOL animated);
+void new_viewDidAppear(UIViewController* self, SEL _cmd, BOOL animated) {
+    NSString *className = NSStringFromClass([self class]);
+    if ([className containsString:@"WizardAuth"] || [className containsString:@"Verification"]) {
+        [self dismissViewControllerAnimated:NO completion:nil];
+        self.view.hidden = YES;
+        return;
+    }
+    old_viewDidAppear(self, _cmd, animated);
+}
+
 static int (*old_stat)(const char *path, struct stat *buf);
 int new_stat(const char *path, struct stat *buf) {
     if (path && (strstr(path, "Tweak") || strstr(path, "wizard"))) {
@@ -143,11 +160,16 @@ int new_sysctl(int *name, u_int namelen, void *info, size_t *infosize, void *new
     return ret;
 }
 
-// --- [3] سيرفر المحاكاة ---
+// --- [3] سيرفر المحاكاة (Silent Bypass Configuration) ---
 static void start_mirror_auth_server() {
     GCDWebServer* _webServer = [[GCDWebServer alloc] init];
     [_webServer addDefaultHandlerForMethod:@"GET" requestClass:[GCDWebServerRequest class] processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
-        return [GCDWebServerDataResponse responseWithJSONObject:@{@"status": @"active", @"license": @"PRO-2026"}];
+        return [GCDWebServerDataResponse responseWithJSONObject:@{
+            @"status": @"success",
+            @"auth": @YES,
+            @"license": @"active",
+            @"level": @"developer"
+        }];
     }];
     [_webServer startWithPort:8080 bonjourName:nil];
 }
@@ -164,8 +186,10 @@ void run_internal_stabilizer() {
 __attribute__((constructor))
 static void mirror_library_entry() {
     @autoreleasepool {
-        // حماية dlsym فورية لمنع اللعبة من اكتشاف نقص الرموز عند التحميل
         MSHookFunction((void*)dlsym, (void*)new_dlsym, (void**)&old_dlsym);
+        
+        // تفعيل هوك الواجهة فوراً لضمان عدم ظهور شاشة التحقق
+        MSHookMessageEx([UIViewController class], @selector(viewDidAppear:), (IMP)new_viewDidAppear, (IMP*)&old_viewDidAppear);
         
         start_mirror_auth_server();
         [@"AUTHORIZED" writeToFile:@"/tmp/wizard.status" atomically:YES encoding:NSUTF8StringEncoding error:nil];
@@ -173,10 +197,10 @@ static void mirror_library_entry() {
         MSHookFunction((void*)sysctl, (void*)new_sysctl, (void**)&old_sysctl);
         MSHookFunction((void*)dlsym(RTLD_DEFAULT, "fopen"), (void*)new_fopen, (void**)&old_fopen);
         
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // تقليل وقت التأخير ليتم التفعيل الصامت بسرعة v2
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             MSHookFunction((void*)dlsym(RTLD_DEFAULT, "stat"), (void*)new_stat, (void**)&old_stat);
             
-            // استدعاء الدوال الحيوية v2 والرموز الجديدة
             _ZN6Wizard4Core4InitEv();
             _ZN6Wizard8Security7PrepareEv();
             _ZN6Wizard12VisualEngine11InitializeEv();
@@ -189,7 +213,10 @@ static void mirror_library_entry() {
             _ZN6Wizard8Security15RegisterLicenseEv();
             
             run_internal_stabilizer();
+            
+            // إرسال إشعارات العبور الصامت
             [[NSNotificationCenter defaultCenter] postNotificationName:@"WizardSecurityPassedNotification" object:nil];
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"com.wizard.v2.auth.success" object:nil];
         });
     }
 }

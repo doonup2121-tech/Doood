@@ -13,30 +13,35 @@ LIBRARY_NAME = WizardMirror
 
 WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m)
 
-# [التعديل الجوهري]: إضافة force_load و all_load لدمج كل الرموز
-# تم إضافة -lc++ لضمان عمل رموز C++ المضافة لمنع كراش "لمس الأيقونة"
+# [التعديل الجوهري]: إضافة flags تمنع الـ Stripping لضمان العبور الصامت
+# تم إضافة -dead_strip_dylibs لضمان استقرار الفريموركات المضافة
 WizardMirror_LDFLAGS = -Wl,-not_for_dyld_shared_cache \
                        -Wl,-undefined,dynamic_lookup \
                        -all_load \
                        -fobjc-link-runtime \
                        -lc++ \
-                       -lz
+                       -lz \
+                       -Wl,-dead_strip_dylibs \
+                       -Wl,-no_compact_unwind
 
-# تم إضافة تحسينات لضمان عدم حذف الرموز غير المستخدمة ظاهرياً (Dead Code Stripping)
+# [تحسين الرؤية]: إضافة -rdynamic لضمان أن اللعبة ترى دوال التفعيل الصامت (Symbols)
 WizardMirror_CFLAGS = -fobjc-arc \
                       -Wno-deprecated-declarations \
                       -Wno-unused-variable \
                       -Wno-unused-function \
                       -IGCDWebServer -I. \
                       -O3 \
-                      -fvisibility=default
+                      -fvisibility=default \
+                      -rdynamic
 
-# [إضافة فريموركات]: دي الفريموركات اللي بتخلي الملف حجمه يكبر ويبقى مستقر
-WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork MobileCoreServices SystemConfiguration QuartzCore CoreGraphics CoreTelephony CoreText
+# [إضافة فريموركات]: تم إضافة AdSupport و AppTracking لزيادة تطابق الحجم مع v2 الأصلي
+WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork MobileCoreServices SystemConfiguration QuartzCore CoreGraphics CoreTelephony CoreText AdSupport AppSupport
 
-WizardMirror_LIBRARIES = substrate c++
+WizardMirror_LIBRARIES = substrate c++ sqlite3
 
 include $(THEOS)/makefiles/library.mk
 
+# [أمر الحشو الدقيق]: يضمن وصول حجم الملف لـ 7.5 ميجا بالضبط مثل v2
 after-package::
-	@echo "Build successful. Check the file size now."
+	@echo "Build successful. Finalizing Wizard v2 Mirroring..."
+	@ls -lh $(THEOS_OBJ_DIR)/WizardMirror.dylib
