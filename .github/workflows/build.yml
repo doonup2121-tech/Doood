@@ -3,8 +3,6 @@ name: Build Wizard Mirror Library
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -17,10 +15,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Dependencies (ldid & dpkg)
+      - name: Install Dependencies
         run: |
           brew install ldid dpkg
-          # هذا السطر يحل مشكلة bash: ldid: command not found نهائياً
+          # تثبيت أدوات التوقيع
 
       - name: Setup Theos
         run: |
@@ -29,10 +27,20 @@ jobs:
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
           echo "/opt/theos/bin" >> $GITHUB_PATH
 
-      - name: Setup iOS SDK
+      # --- [تعديل الـ SDK المضمون] ---
+      - name: Download Guaranteed iOS SDK
         run: |
-          git clone https://github.com/theos/sdks.git $THEOS/sdks
-          # سيقوم هذا السطر بتحميل الـ SDKs المطلوبة لعملية الـ Linking
+          mkdir -p $THEOS/sdks
+          # تحميل SDK 14.5 مضغوط مباشرة (أسرع وأضمن من الكلون العادي)
+          curl -LO https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz
+          tar -xf iPhoneOS14.5.sdk.tar.xz -C $THEOS/sdks/
+          rm iPhoneOS14.5.sdk.tar.xz
+
+      - name: Ensure GCDWebServer exists
+        run: |
+          if [ ! -d "GCDWebServer" ]; then
+            git clone https://github.com/swisspol/GCDWebServer.git
+          fi
 
       - name: Build Mirror Library
         run: |
@@ -40,7 +48,6 @@ jobs:
           make -j$(sysctl -n hw.ncpu) FINALPACKAGE=1
         env:
           THEOS: /opt/theos
-          # الحل الإضافي لضمان النجاح حتى لو فشل التوقيع
           Codesign: /usr/bin/true 
 
       - name: Upload Dylib Artifact
@@ -48,5 +55,3 @@ jobs:
         with:
           name: WizardMirror-Dylib
           path: .theos/obj/debug/*.dylib
-          # أو استخدم المسار المباشر إذا كنت تبني نسخة الـ Release:
-          # path: packages/*.deb 
