@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install ldid dpkg
-          # تثبيت أدوات التوقيع
+          # تثبيت أدوات التوقيع والتحزيم
 
       - name: Setup Theos
         run: |
@@ -27,14 +27,12 @@ jobs:
           echo "THEOS=/opt/theos" >> $GITHUB_ENV
           echo "/opt/theos/bin" >> $GITHUB_PATH
 
-      # --- [تعديل الـ SDK المضمون] ---
-      - name: Download Guaranteed iOS SDK
+      # --- [الحل المضمون والجذري للـ SDK] ---
+      - name: Download iOS SDK (Stable Repo)
         run: |
-          mkdir -p $THEOS/sdks
-          # تحميل SDK 14.5 مضغوط مباشرة (أسرع وأضمن من الكلون العادي)
-          curl -LO https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz
-          tar -xf iPhoneOS14.5.sdk.tar.xz -C $THEOS/sdks/
-          rm iPhoneOS14.5.sdk.tar.xz
+          # سحب الـ SDK من المستودع الأكثر ثباتاً في عالم Theos
+          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks
+          # هذا الأمر يسحب آخر نسخة من الـ SDKs بدون تاريخ الملفات الطويل ليكون سريعاً جداً
 
       - name: Ensure GCDWebServer exists
         run: |
@@ -54,4 +52,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WizardMirror-Dylib
-          path: .theos/obj/debug/*.dylib
+          path: .theos/obj/*/*.dylib
