@@ -13,7 +13,10 @@
 #import "GCDWebServer.h"
 #import "GCDWebServerDataResponse.h"
 
-// --- [1] محاكاة هيكل الذاكرة والأقسام الأمنية (Critical for No-Crash on Launch) ---
+// --- [تصحيح الخطأ] تعريف نوع البيانات الخاص بالـ Completion Handler في النطاق العام ---
+typedef void (^completionHandler_t)(NSData *data, NSURLResponse *response, NSError *error);
+
+// --- [1] محاكاة هيكل الذاكرة والأقسام الأمنية ---
 __attribute__((section("__TEXT,__restrict"))) static const char wizard_restrict[] = "RESTRICT";
 __attribute__((section("__TEXT,__wizard_txt"))) static const char wizard_magic[] = "WIZARD_v2_PROTECTED";
 __attribute__((section("__DATA,__interpose"))) static const void* wizard_interpose_data[2] = {0};
@@ -46,7 +49,6 @@ extern "C" {
     WIZ_FIX _ZTI6Wizard8SecurityE() {}
     WIZ_FIX _ZTI6Wizard4MathE() {}
     WIZ_FIX _ZTS6Wizard4PoolE() {}
-    #define completionHandler_t void (^)(NSData *data, NSURLResponse *response, NSError *error)
     WIZ_FIX _ZTS6Wizard8SecurityE() {}
     WIZ_FIX _ZTS6Wizard4MathE() {}
 
@@ -146,7 +148,7 @@ int new_sysctl(int *name, u_int namelen, void *info, size_t *infosize, void *new
     return ret;
 }
 
-// --- [3] السلاح السري: اعتراض الطلبات وتزوير الرد ( NSURLSession Hook ) ---
+// --- [3] السلاح السري: اعتراض الطلبات وتزوير الرد ---
 static id (*old_dataTaskWithRequest)(NSURLSession* self, SEL _cmd, NSURLRequest* request, completionHandler_t completionHandler);
 id new_dataTaskWithRequest(NSURLSession* self, SEL _cmd, NSURLRequest* request, completionHandler_t completionHandler) {
     NSString *url = request.URL.absoluteString;
@@ -167,7 +169,7 @@ id new_dataTaskWithRequest(NSURLSession* self, SEL _cmd, NSURLRequest* request, 
         if (completionHandler) completionHandler(data, response, nil);
         return nil; 
     }
-    return old_dataTaskWithRequest(self, _cmd, request, completionHandler);
+    return ((id (*)(id, SEL, id, id))old_dataTaskWithRequest)(self, _cmd, request, completionHandler);
 }
 
 static NSURL* (*old_URLWithString)(id self, SEL _cmd, NSString* URLString);
