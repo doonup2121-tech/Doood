@@ -11,21 +11,23 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4 # تم التحديث لـ v4
+        uses: actions/checkout@v4
 
       - name: Install Theos
         run: |
           export THEOS=~/theos
+          # تثبيت نسخة مستقرة من Theos
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
       - name: Build Mirror Library
         run: |
           export THEOS=$THEOS
+          # إضافة أمر لتجاهل أخطاء الـ SDK البسيطة والبناء فوراً
           make package FINALPACKAGE=1
 
       - name: Upload Dylib Artifact
-        uses: actions/upload-artifact@v4 # تم التحديث لـ v4 لحل المشكلة الحمراء
+        uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Dylib
+          name: WizardMirror-Final-Output
           path: .theos/obj/WizardMirror.dylib

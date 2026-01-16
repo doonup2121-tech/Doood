@@ -7,7 +7,7 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = WizardMirror
 
-# تأكد أن اسم ملف الكود عندك هو Tweak.mm كما في الصورة
+# تأكد أن اسم الملف عندك في القائمة هو Tweak.mm
 WizardMirror_FILES = Tweak.mm
 WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork
 WizardMirror_LIBRARIES = substrate gcdwebserver
