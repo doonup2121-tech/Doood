@@ -14,24 +14,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Theos
+        # قمنا بتغيير طريقة التثبيت لتجنب الطلب من API جيت هاب
         run: |
           export THEOS=~/theos
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
-          # الحل الجذري لمنع خطأ Unrecognized archive format:
-          # تحميل الـ SDK من مستودع الـ SDks الرسمي لـ Theos مباشرة وبصيغة مؤكدة
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          
+          # تحميل الـ SDK يدوياً لتخطي خطأ Exit code 8
           mkdir -p $THEOS/sdks
           curl -L https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz -o $THEOS/sdks/iPhoneOS14.5.sdk.tar.xz
           tar -xf $THEOS/sdks/iPhoneOS14.5.sdk.tar.xz -C $THEOS/sdks
+          
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
       - name: Build Mirror Library
         run: |
           export THEOS=$THEOS
-          # إضافة علم لتجاوز أي تحذيرات تعيق البناء
           make package FINALPACKAGE=1
 
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Final-File
+          name: WizardMirror-Library
           path: .theos/obj/WizardMirror.dylib
