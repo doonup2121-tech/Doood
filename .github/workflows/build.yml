@@ -13,16 +13,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Theos (Manual Mode)
+      - name: Install Theos (Alternative Mirror)
         run: |
-          # تحميل ثيوس مباشرة من المستودع لتجنب تعطل الروابط
+          # تحميل Theos من رابط مباشر ومستقر
           git clone --recursive https://github.com/theos/theos.git ~/theos
           
-          # تحميل الـ SDK من رابط ثابت ومستقر جداً (إصدار 14.5)
+          # تحميل الـ SDK من مستودع Kabiroberon (بديل ممتاز ومستقر جداً)
           mkdir -p ~/theos/sdks
-          curl -L https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz -o ~/theos/sdks/iPhoneOS14.5.sdk.tar.xz
+          curl -L "https://github.com/Kabiroberon/theos-sdks/raw/master/iPhoneOS14.5.sdk.tar.xz" -o ~/theos/sdks/iPhoneOS14.5.sdk.tar.xz
           
-          # فك الضغط والتأكد من المسار
+          # فك الضغط
           tar -xf ~/theos/sdks/iPhoneOS14.5.sdk.tar.xz -C ~/theos/sdks/
           rm ~/theos/sdks/iPhoneOS14.5.sdk.tar.xz
           
