@@ -7,8 +7,8 @@
 #import <sys/stat.h>
 
 /* GCDWebServer imports (المسارات الصح) */
-#import <GCDWebServer/GCDWebServer.h>
-#import <GCDWebServer/GCDWebServerDataResponse.h>
+#import <GCDWebServer.h>
+#import <GCDWebServerDataResponse.h>
 
 // --- [1] استيراد كافة رموز المكتبة حرفياً كما في النسخ السابقة ---
 extern "C" {
