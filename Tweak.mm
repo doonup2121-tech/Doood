@@ -5,8 +5,10 @@
 #import <dlfcn.h>
 #import <substrate.h>
 #import <sys/stat.h>
+
+/* GCDWebServer imports (المسارات الصح) */
 #import <GCDWebServer/GCDWebServer.h>
-#import "GCDWebServerDataResponse.h"
+#import <GCDWebServer/GCDWebServerDataResponse.h>
 
 // --- [1] استيراد كافة رموز المكتبة حرفياً كما في النسخ السابقة ---
 extern "C" {
