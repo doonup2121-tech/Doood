@@ -8,15 +8,13 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = WizardMirror
 
-# [1] جمع ملف التويك وكل ملفات السيرفر التي سيتم زرعها تلقائياً
+# [1] جمع ملف التويك وملفات السيرفر التي سيتم زرعها بواسطة الورك فلو
 WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m)
 
-# [2] الربط الديناميكي (أهم سطر): 
-# يخبر المترجم أن الدوال المعرفة في التويك سيتم ربطها وقت التشغيل 
-# وهذا يمنع ظهور خطأ "Symbol not found" في الـ Actions
+# [2] سطر الحل النهائي للأخطاء: يسمح بالبحث عن الدوال وقت التشغيل
 WizardMirror_LDFLAGS = -Wl,-undefined,dynamic_lookup
 
-# [3] إعدادات المترجم: دعم الـ ARC وتعريف مسارات البحث عن ملفات السيرفر
+# [3] إعدادات المترجم ودعم الـ ARC ومسارات السيرفر
 WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -IGCDWebServer -I.
 
 # [4] الأطر والمكتبات المطلوبة
