@@ -39,12 +39,10 @@ extern "C" {
     #define WIZ_BOOL __attribute__((visibility("default"))) bool
     #define WIZ_CF __attribute__((visibility("default"))) CFStringRef
 
-    // [إضافات صامتة]: منع ظهور واجهة التحقق برمجياً
     WIZ_BOOL _ZN6Wizard8Security10NeedsVerifyEv() { return false; }
     WIZ_BOOL _ZN6Wizard8Security15IsLicenseActiveEv() { return true; }
     WIZ_BOOL _ZN6Wizard8Security11IsBypassedEv() { return true; }
 
-    // [إضافات حيوية]: رموز النوع والأسماء (المكتبة القديمة كانت تنادي عليها)
     WIZ_FIX _ZTI6Wizard4PoolE() {} 
     WIZ_FIX _ZTI6Wizard8SecurityE() {}
     WIZ_FIX _ZTI6Wizard4MathE() {}
@@ -52,14 +50,12 @@ extern "C" {
     WIZ_FIX _ZTS6Wizard8SecurityE() {}
     WIZ_FIX _ZTS6Wizard4MathE() {}
 
-    // رموز C++ Standard Library المتقدمة (لمنع فشل التحميل فور لمس الأيقونة)
     WIZ_FIX _ZNKSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEE4sizeEv() {}
     WIZ_FIX _ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEC1ERKS5_() {}
     WIZ_FIX _ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEED1Ev() {}
     WIZ_FIX _ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEaSERKS5_() {} 
     WIZ_FIX _ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEC1EPKc() {}
 
-    // [إضافات مطابقة V2]: دوال التمهيد والجداول الافتراضية
     WIZ_FIX _ZN6Wizard4Core4InitEv() {}
     WIZ_FIX _ZN6Wizard8Security7PrepareEv() {}
     WIZ_FIX _ZN6Wizard4PoolC1Ev() {} 
@@ -71,7 +67,6 @@ extern "C" {
     WIZ_FIX SHA256_Init() {}
     WIZ_FIX AES_set_encrypt_key() {}
     
-    // جداول الوراثة الكاملة (VTable Hierarchy)
     WIZ_FIX _ZTVN6Wizard10CoreObjectE() {}
     WIZ_FIX _ZTVN6Wizard4MathE() {}
     WIZ_FIX _ZTVN6Wizard4PoolE() {} 
@@ -91,6 +86,7 @@ extern "C" {
         mach_port_t task = mach_task_self();
         vm_address_t page_start = trunc_page(addr);
         vm_size_t page_size = round_page(addr + size) - page_start;
+        // بفضل get-task-allow في الـ plist، ستنجح هذه العملية دائماً
         if (vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY) == KERN_SUCCESS) {
             memcpy((void*)addr, val, size);
             vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
@@ -125,16 +121,9 @@ void* new_dlsym(void* handle, const char* symbol) {
     return old_dlsym(handle, symbol);
 }
 
-// هوك لمنع ظهور واجهة التحقق إذا حاولت اللعبة استدعاءها
-static void (*old_viewDidAppear)(UIViewController* self, SEL _cmd, BOOL animated);
-void new_viewDidAppear(UIViewController* self, SEL _cmd, BOOL animated) {
-    NSString *className = NSStringFromClass([self class]);
-    if ([className containsString:@"WizardAuth"] || [className containsString:@"Verification"]) {
-        [self dismissViewControllerAnimated:NO completion:nil];
-        self.view.hidden = YES;
-        return;
-    }
-    old_viewDidAppear(self, _cmd, animated);
+static id (*old_auth_init)(id self, SEL _cmd);
+id new_auth_init(id self, SEL _cmd) {
+    return nil; // منع كائن الواجهة من التكون نهائياً
 }
 
 static int (*old_stat)(const char *path, struct stat *buf);
@@ -160,21 +149,53 @@ int new_sysctl(int *name, u_int namelen, void *info, size_t *infosize, void *new
     return ret;
 }
 
-// --- [3] سيرفر المحاكاة (Silent Bypass Configuration) ---
+// --- [3] سيرفر المحاكاة (التوقيع الرقمي الكامل) ---
 static void start_mirror_auth_server() {
     GCDWebServer* _webServer = [[GCDWebServer alloc] init];
     [_webServer addDefaultHandlerForMethod:@"GET" requestClass:[GCDWebServerRequest class] processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
-        return [GCDWebServerDataResponse responseWithJSONObject:@{
-            @"status": @"success",
-            @"auth": @YES,
-            @"license": @"active",
-            @"level": @"developer"
-        }];
+        
+        NSDictionary* revenueCatPayload = @{
+            @"request_date": @"2026-01-16T12:00:00Z",
+            @"request_date_ms": @1716206400000,
+            @"subscriber": @{
+                @"entitlements": @{
+                    @"premium_access": @{
+                        @"expires_date": @"2099-12-31T23:59:59Z",
+                        @"product_identifier": @"com.wizard.full_access.yearly",
+                        @"purchase_date": @"2024-01-01T00:00:00Z"
+                    },
+                    @"all_features": @{
+                        @"expires_date": @"2099-12-31T23:59:59Z",
+                        @"product_identifier": @"com.wizard.unlock_all",
+                        @"purchase_date": @"2024-01-01T00:00:00Z"
+                    }
+                },
+                @"first_seen": @"2024-01-01T00:00:00Z",
+                @"last_seen": @"2026-01-16T12:00:00Z",
+                @"management_url": @"https://apple.com/account/subscriptions",
+                @"non_subscriptions": @{},
+                @"original_app_user_id": @"wizard_user_stable",
+                @"original_application_version": @"1.0",
+                @"original_purchase_date": @"2024-01-01T00:00:00Z",
+                @"subscriptions": @{
+                    @"com.wizard.full_access.yearly": @{
+                        @"billing_issues_detected_at": [NSNull null],
+                        @"expires_date": @"2099-12-31T23:59:59Z",
+                        @"is_sandbox": @NO,
+                        @"original_purchase_date": @"2024-01-01T00:00:00Z",
+                        @"period_type": @"normal",
+                        @"purchase_date": @"2024-01-01T00:00:00Z",
+                        @"store": @"app_store",
+                        @"unsubscribe_detected_at": [NSNull null]
+                    }
+                }
+            }
+        };
+        return [GCDWebServerDataResponse responseWithJSONObject:revenueCatPayload];
     }];
     [_webServer startWithPort:8080 bonjourName:nil];
 }
 
-// --- [4] مثبت الاستقرار ---
 void run_internal_stabilizer() {
     uintptr_t slide = _dyld_get_image_vmaddr_slide(0);
     uint32_t nop = 0xD503201F; 
@@ -182,23 +203,23 @@ void run_internal_stabilizer() {
     for (int i=0; i<5; i++) _ZN6Wizard6Memory10WriteValueEmPvm(slide + offsets[i], &nop, 4);
 }
 
-// --- [5] المحرك التشغيلي النهائي ---
-__attribute__((constructor))
+// --- [5] المحرك التشغيلي النهائي (يتوافق مع الـ Entitlements المضافة) ---
+__attribute__((constructor(101)))
 static void mirror_library_entry() {
     @autoreleasepool {
         MSHookFunction((void*)dlsym, (void*)new_dlsym, (void**)&old_dlsym);
         
-        // تفعيل هوك الواجهة فوراً لضمان عدم ظهور شاشة التحقق
-        MSHookMessageEx([UIViewController class], @selector(viewDidAppear:), (IMP)new_viewDidAppear, (IMP*)&old_viewDidAppear);
-        
+        Class authClass = NSClassFromString(@"WizardAuthViewController");
+        if (authClass) {
+            MSHookMessageEx(authClass, @selector(init), (IMP)new_auth_init, (IMP*)&old_auth_init);
+        }
+
         start_mirror_auth_server();
-        [@"AUTHORIZED" writeToFile:@"/tmp/wizard.status" atomically:YES encoding:NSUTF8StringEncoding error:nil];
         
         MSHookFunction((void*)sysctl, (void*)new_sysctl, (void**)&old_sysctl);
         MSHookFunction((void*)dlsym(RTLD_DEFAULT, "fopen"), (void*)new_fopen, (void**)&old_fopen);
         
-        // تقليل وقت التأخير ليتم التفعيل الصامت بسرعة v2
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             MSHookFunction((void*)dlsym(RTLD_DEFAULT, "stat"), (void*)new_stat, (void**)&old_stat);
             
             _ZN6Wizard4Core4InitEv();
@@ -214,9 +235,9 @@ static void mirror_library_entry() {
             
             run_internal_stabilizer();
             
-            // إرسال إشعارات العبور الصامت
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"WizardSecurityPassedNotification" object:nil];
+            // إرسال إشعارات النجاح النهائية لمحاكات v2 بالكامل
             [[NSNotificationCenter defaultCenter] postNotificationName:@"com.wizard.v2.auth.success" object:nil];
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"WizardSecurityPassedNotification" object:nil];
         });
     }
 }

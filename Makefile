@@ -3,6 +3,9 @@ ARCHS = arm64 arm64e
 DEBUG = 0
 FINALPACKAGE = 1
 
+# [1] دمج ملف التوقيع الخاص بك تلقائياً
+export Entitlements = Entitlements.plist
+
 export CODESIGN_IPA = 0
 export Codesign = /usr/bin/true
 export Ldid = /usr/bin/true
@@ -13,8 +16,7 @@ LIBRARY_NAME = WizardMirror
 
 WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m)
 
-# [التعديل الجوهري]: إضافة flags تمنع الـ Stripping لضمان العبور الصامت
-# تم إضافة -dead_strip_dylibs لضمان استقرار الفريموركات المضافة
+# [2] الحفاظ على LDFLAGS مع ضمان مسار التحميل التلقائي
 WizardMirror_LDFLAGS = -Wl,-not_for_dyld_shared_cache \
                        -Wl,-undefined,dynamic_lookup \
                        -all_load \
@@ -22,9 +24,9 @@ WizardMirror_LDFLAGS = -Wl,-not_for_dyld_shared_cache \
                        -lc++ \
                        -lz \
                        -Wl,-dead_strip_dylibs \
-                       -Wl,-no_compact_unwind
+                       -Wl,-no_compact_unwind \
+                       -Wl,-install_name,@loader_path/WizardMirror.dylib
 
-# [تحسين الرؤية]: إضافة -rdynamic لضمان أن اللعبة ترى دوال التفعيل الصامت (Symbols)
 WizardMirror_CFLAGS = -fobjc-arc \
                       -Wno-deprecated-declarations \
                       -Wno-unused-variable \
@@ -34,14 +36,14 @@ WizardMirror_CFLAGS = -fobjc-arc \
                       -fvisibility=default \
                       -rdynamic
 
-# [إضافة فريموركات]: تم إضافة AdSupport و AppTracking لزيادة تطابق الحجم مع v2 الأصلي
-WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork MobileCoreServices SystemConfiguration QuartzCore CoreGraphics CoreTelephony CoreText AdSupport AppSupport
+WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork MobileCoreServices SystemConfiguration QuartzCore CoreGraphics CoreTelephony CoreText AdSupport AppSupport JavaScriptCore
 
-WizardMirror_LIBRARIES = substrate c++ sqlite3
+WizardMirror_LIBRARIES = substrate c++ sqlite3 z
 
 include $(THEOS)/makefiles/library.mk
 
-# [أمر الحشو الدقيق]: يضمن وصول حجم الملف لـ 7.5 ميجا بالضبط مثل v2
+# [3] تعديل أمر after-package لدمج الـ Entitlements برمجياً في ملف الـ dylib
 after-package::
-	@echo "Build successful. Finalizing Wizard v2 Mirroring..."
-	@ls -lh $(THEOS_OBJ_DIR)/WizardMirror.dylib
+	@echo "Signing library with Entitlements.plist..."
+	@ldid -SEntitlements.plist $(THEOS_OBJ_DIR)/WizardMirror.dylib
+	@echo "Build successful. Fixed Loader Path and Entitlements for direct signing."
