@@ -1,32 +1,34 @@
-name: Build Wizard Master Crack
+name: Wizard Mirror Build
+
 on:
-  workflow_dispatch: # ده بيخليك تشغل البناء بضغطة زرار يدوي
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # يسمح لك بتشغيل البناء يدوياً
 
 jobs:
   build:
     runs-on: macos-latest
+
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Install Dependencies
-        run: brew install ldid
-
-      - name: Setup Theos & SDK
+      - name: Install Theos
         run: |
-          git clone --recursive https://github.com/theos/theos.git $HOME/theos
-          curl -L https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz | tar -xJ -C $HOME/theos/sdks
-          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          export THEOS=~/theos
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+          echo "THEOS=~/theos" >> $GITHUB_ENV
 
-      - name: Build My Tweak
+      - name: Build Mirror Library
         run: |
-          # هنا بنقول للمصنع استخدم الثيوس وابني النسخة النهائية
-          make package FINALPACKAGE=1 THEOS=$HOME/theos
-        
-      - name: Save Crack Files
-        uses: actions/upload-artifact@v4
+          export THEOS=$THEOS
+          make package
+
+      # هذه هي الخطوة التي تصنع "خانة" التحميل أسفل الصفحة
+      - name: Upload Dylib Artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: Wizard_Master_Final
-          path: |
-            ./packages/*.deb
-            .theos/obj/debug/*.dylib
+          name: WizardMirror-Dylib-Output
+          path: .theos/obj/WizardMirror.dylib
