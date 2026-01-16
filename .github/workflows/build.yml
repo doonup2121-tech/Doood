@@ -1,5 +1,4 @@
 name: Wizard Mirror Pro Build
-
 on:
   push:
     branches: [ main ]
@@ -8,32 +7,28 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Theos & SDK (Stable Git Method)
+      - name: Install Theos & SDK (Stable Method)
         run: |
           export THEOS=~/theos
-          # تحميل الثيوس
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          
-          # تحميل الـ SDK (أضمن رابط جربناه)
           mkdir -p $THEOS/sdks
           git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks_repo
           mv $THEOS/sdks_repo/iPhoneOS14.5.sdk $THEOS/sdks/
-          
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
-      - name: Inject GCDWebServer (Auto-Download)
+      - name: Inject GCDWebServer (Flatten Files)
         run: |
-          # مسح أي مخلفات قديمة وتحميل نسخة نظيفة من السيرفر
           rm -rf GCDWebServer
-          git clone https://github.com/swisspol/GCDWebServer.git GCDWebServer_Temp
+          git clone --depth=1 https://github.com/swisspol/GCDWebServer.git TempGCD
           mkdir -p GCDWebServer
-          cp -r GCDWebServer_Temp/GCDWebServer/Core/. GCDWebServer/
-          rm -rf GCDWebServer_Temp
+          # نقل كل ملفات الـ Header والـ Source لمجلد واحد عشان المترجم يلاقيهم فوراً
+          find TempGCD/GCDWebServer -name "*.h" -exec cp {} GCDWebServer/ \;
+          find TempGCD/GCDWebServer -name "*.m" -exec cp {} GCDWebServer/ \;
+          rm -rf TempGCD
 
       - name: Build Mirror Library
         run: |
