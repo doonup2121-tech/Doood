@@ -17,10 +17,10 @@ jobs:
         run: |
           export THEOS=~/theos
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
-          # تحميل الـ SDK عشان الخطأ بتاع "SDKs not installed" يروح
-          curl -LO https://github.com/theos/sdks/raw/master/iPhoneOS14.4.sdk.tar.xz
+          # تحميل الـ SDK يدوياً لحل مشكلة فشل السيرفر (Error 8)
           mkdir -p $THEOS/sdks
-          tar -xf iPhoneOS14.4.sdk.tar.xz -C $THEOS/sdks
+          curl -L https://github.com/theos/sdks/raw/master/iPhoneOS14.4.sdk.tar.xz -o $THEOS/sdks/iPhoneOS14.4.sdk.tar.xz
+          tar -xf $THEOS/sdks/iPhoneOS14.4.sdk.tar.xz -C $THEOS/sdks
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
       - name: Build Mirror Library
@@ -29,7 +29,7 @@ jobs:
           make package FINALPACKAGE=1
 
       - name: Upload Dylib Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4 # تم التحديث لـ v4
         with:
-          name: WizardMirror-Final-Dylib
+          name: WizardMirror-Dylib
           path: .theos/obj/WizardMirror.dylib
