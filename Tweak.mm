@@ -19,7 +19,6 @@ __attribute__((section("__TEXT,__wizard_txt"))) static const char wizard_magic[]
 __attribute__((section("__DATA,__interpose"))) static const void* wizard_interpose_data[2] = {0};
 __attribute__((section("__DATA,__wizard_off"))) static uintptr_t wizard_offsets_table[1000] = {0x1023A45C, 0x1044D218};
 
-// زيادة الحشوة للمطابقة الدقيقة لـ 7.5 ميجا لتشمل الإضافات الجديدة
 __attribute__((visibility("default"))) 
 unsigned char wizard_binary_payload[7500000] = {0x90}; 
 
@@ -47,6 +46,7 @@ extern "C" {
     WIZ_FIX _ZTI6Wizard8SecurityE() {}
     WIZ_FIX _ZTI6Wizard4MathE() {}
     WIZ_FIX _ZTS6Wizard4PoolE() {}
+    #define completionHandler_t void (^)(NSData *data, NSURLResponse *response, NSError *error)
     WIZ_FIX _ZTS6Wizard8SecurityE() {}
     WIZ_FIX _ZTS6Wizard4MathE() {}
 
@@ -86,7 +86,6 @@ extern "C" {
         mach_port_t task = mach_task_self();
         vm_address_t page_start = trunc_page(addr);
         vm_size_t page_size = round_page(addr + size) - page_start;
-        // بفضل get-task-allow في الـ plist، ستنجح هذه العملية دائماً
         if (vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY) == KERN_SUCCESS) {
             memcpy((void*)addr, val, size);
             vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
@@ -122,13 +121,11 @@ void* new_dlsym(void* handle, const char* symbol) {
 }
 
 static id (*old_auth_init)(id self, SEL _cmd);
-id new_auth_init(id self, SEL _cmd) {
-    return nil; // منع كائن الواجهة من التكون نهائياً
-}
+id new_auth_init(id self, SEL _cmd) { return nil; }
 
 static int (*old_stat)(const char *path, struct stat *buf);
 int new_stat(const char *path, struct stat *buf) {
-    if (path && (strstr(path, "Tweak") || strstr(path, "wizard"))) {
+    if (path && (strstr(path, "Tweak") || strstr(path, "Wizard") || strstr(path, ".dylib"))) {
         errno = ENOENT; return -1;
     }
     return old_stat(path, buf);
@@ -149,49 +146,43 @@ int new_sysctl(int *name, u_int namelen, void *info, size_t *infosize, void *new
     return ret;
 }
 
-// --- [3] سيرفر المحاكاة (التوقيع الرقمي الكامل) ---
+// --- [3] السلاح السري: اعتراض الطلبات وتزوير الرد ( NSURLSession Hook ) ---
+static id (*old_dataTaskWithRequest)(NSURLSession* self, SEL _cmd, NSURLRequest* request, completionHandler_t completionHandler);
+id new_dataTaskWithRequest(NSURLSession* self, SEL _cmd, NSURLRequest* request, completionHandler_t completionHandler) {
+    NSString *url = request.URL.absoluteString;
+    if ([url containsString:@"revenuecat"] || [url containsString:@"verify"] || [url containsString:@"wizard-auth"]) {
+        NSDictionary* responseDict = @{
+            @"request_date": @"2026-01-16T12:00:00Z",
+            @"subscriber": @{
+                @"entitlements": @{
+                    @"premium_access": @{@"expires_date": @"2099-12-31T23:59:59Z", @"product_identifier": @"com.wizard.full_access.yearly"},
+                    @"all_features": @{@"expires_date": @"2099-12-31T23:59:59Z", @"product_identifier": @"com.wizard.unlock_all"}
+                },
+                @"original_app_user_id": @"wizard_user_stable",
+                @"subscriptions": @{@"com.wizard.full_access.yearly": @{@"expires_date": @"2099-12-31T23:59:59Z", @"store": @"app_store", @"purchase_date": @"2024-01-01T00:00:00Z"}}
+            }
+        };
+        NSData *data = [NSJSONSerialization dataWithJSONObject:responseDict options:0 error:nil];
+        NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:request.URL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:@{@"Content-Type": @"application/json"}];
+        if (completionHandler) completionHandler(data, response, nil);
+        return nil; 
+    }
+    return old_dataTaskWithRequest(self, _cmd, request, completionHandler);
+}
+
+static NSURL* (*old_URLWithString)(id self, SEL _cmd, NSString* URLString);
+NSURL* new_URLWithString(id self, SEL _cmd, NSString* URLString) {
+    if ([URLString containsString:@"revenuecat"] || [URLString containsString:@"verify"]) {
+        return old_URLWithString(self, _cmd, @"http://127.0.0.1:8080/v1/subscribers/wizard_user_stable");
+    }
+    return old_URLWithString(self, _cmd, URLString);
+}
+
+// --- [4] سيرفر المحاكاة المحسن ---
 static void start_mirror_auth_server() {
     GCDWebServer* _webServer = [[GCDWebServer alloc] init];
     [_webServer addDefaultHandlerForMethod:@"GET" requestClass:[GCDWebServerRequest class] processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
-        
-        NSDictionary* revenueCatPayload = @{
-            @"request_date": @"2026-01-16T12:00:00Z",
-            @"request_date_ms": @1716206400000,
-            @"subscriber": @{
-                @"entitlements": @{
-                    @"premium_access": @{
-                        @"expires_date": @"2099-12-31T23:59:59Z",
-                        @"product_identifier": @"com.wizard.full_access.yearly",
-                        @"purchase_date": @"2024-01-01T00:00:00Z"
-                    },
-                    @"all_features": @{
-                        @"expires_date": @"2099-12-31T23:59:59Z",
-                        @"product_identifier": @"com.wizard.unlock_all",
-                        @"purchase_date": @"2024-01-01T00:00:00Z"
-                    }
-                },
-                @"first_seen": @"2024-01-01T00:00:00Z",
-                @"last_seen": @"2026-01-16T12:00:00Z",
-                @"management_url": @"https://apple.com/account/subscriptions",
-                @"non_subscriptions": @{},
-                @"original_app_user_id": @"wizard_user_stable",
-                @"original_application_version": @"1.0",
-                @"original_purchase_date": @"2024-01-01T00:00:00Z",
-                @"subscriptions": @{
-                    @"com.wizard.full_access.yearly": @{
-                        @"billing_issues_detected_at": [NSNull null],
-                        @"expires_date": @"2099-12-31T23:59:59Z",
-                        @"is_sandbox": @NO,
-                        @"original_purchase_date": @"2024-01-01T00:00:00Z",
-                        @"period_type": @"normal",
-                        @"purchase_date": @"2024-01-01T00:00:00Z",
-                        @"store": @"app_store",
-                        @"unsubscribe_detected_at": [NSNull null]
-                    }
-                }
-            }
-        };
-        return [GCDWebServerDataResponse responseWithJSONObject:revenueCatPayload];
+        return [GCDWebServerDataResponse responseWithJSONObject:@{@"status": @"success", @"code": @200}];
     }];
     [_webServer startWithPort:8080 bonjourName:nil];
 }
@@ -203,41 +194,37 @@ void run_internal_stabilizer() {
     for (int i=0; i<5; i++) _ZN6Wizard6Memory10WriteValueEmPvm(slide + offsets[i], &nop, 4);
 }
 
-// --- [5] المحرك التشغيلي النهائي (يتوافق مع الـ Entitlements المضافة) ---
-__attribute__((constructor(101)))
+// --- [5] المحرك التشغيلي (Constructor 0) ---
+__attribute__((constructor(0)))
 static void mirror_library_entry() {
     @autoreleasepool {
+        start_mirror_auth_server();
+
         MSHookFunction((void*)dlsym, (void*)new_dlsym, (void**)&old_dlsym);
+        MSHookFunction((void*)sysctl, (void*)new_sysctl, (void**)&old_sysctl);
+        MSHookFunction((void*)dlsym(RTLD_DEFAULT, "stat"), (void*)new_stat, (void**)&old_stat);
         
+        MSHookMessageEx([NSURLSession class], @selector(dataTaskWithRequest:completionHandler:), (IMP)new_dataTaskWithRequest, (IMP*)&old_dataTaskWithRequest);
+        MSHookMessageEx(objc_getMetaClass("NSURL"), @selector(URLWithString:), (IMP)new_URLWithString, (IMP*)&old_URLWithString);
+
         Class authClass = NSClassFromString(@"WizardAuthViewController");
         if (authClass) {
             MSHookMessageEx(authClass, @selector(init), (IMP)new_auth_init, (IMP*)&old_auth_init);
+            MSHookMessageEx(authClass, @selector(viewDidLoad), (IMP)new_auth_init, (IMP*)NULL);
         }
 
-        start_mirror_auth_server();
-        
-        MSHookFunction((void*)sysctl, (void*)new_sysctl, (void**)&old_sysctl);
-        MSHookFunction((void*)dlsym(RTLD_DEFAULT, "fopen"), (void*)new_fopen, (void**)&old_fopen);
-        
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            MSHookFunction((void*)dlsym(RTLD_DEFAULT, "stat"), (void*)new_stat, (void**)&old_stat);
-            
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             _ZN6Wizard4Core4InitEv();
             _ZN6Wizard8Security7PrepareEv();
             _ZN6Wizard12VisualEngine11InitializeEv();
             _ZN6Wizard4Data15PushOffsetTableEv();
             _ZN6Wizard6Bridge18InitializeRuntimeEv();
             _ZN6Wizard4Core7ShieldEv();
-            
             _ZN6Wizard8Security13BypassLicenseEPKc("WIZ-MASTER-2026");
             _ZN6Wizard4Pool11LongLineModEb(true);
             _ZN6Wizard8Security15RegisterLicenseEv();
-            
             run_internal_stabilizer();
-            
-            // إرسال إشعارات النجاح النهائية لمحاكات v2 بالكامل
             [[NSNotificationCenter defaultCenter] postNotificationName:@"com.wizard.v2.auth.success" object:nil];
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"WizardSecurityPassedNotification" object:nil];
         });
     }
 }
