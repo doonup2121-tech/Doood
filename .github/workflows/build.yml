@@ -1,9 +1,9 @@
-name: Build Wizard Mirror Library
+name: Wizard Mirror Pro Build
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [ main ]
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -12,49 +12,40 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Install Dependencies
+      - name: Install Theos & SDK
         run: |
-          brew install ldid dpkg
-
-      - name: Setup Theos
-        run: |
-          sudo git clone --recursive https://github.com/theos/theos.git /opt/theos
-          sudo chown -R $USER /opt/theos
-          echo "THEOS=/opt/theos" >> $GITHUB_ENV
-          echo "/opt/theos/bin" >> $GITHUB_PATH
-
-      # --- [الحل الأخير والمضمون للـ SDK] ---
-      - name: Download iOS SDK (High Stability)
-        run: |
-          # نستخدم مستودع أسرع وأخف مخصص لعمليات البناء التلقائي
+          export THEOS=~/theos
+          # تحميل أدوات الثيوس الأساسية
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          
+          # تحميل الـ SDK (النسخة 14.5 المستقرة)
           mkdir -p $THEOS/sdks
-          curl -L https://github.com/theos/sdks/archive/master.zip -o sdks.zip
-          unzip -q sdks.zip
-          mv sdks-master/*.sdk $THEOS/sdks/
-          rm -rf sdks-master sdks.zip
-          # هذا الأمر يضمن تحميل كافة ملفات الـ SDK بصيغة مضغوطة لتجنب انقطاع التنزيل
+          git clone --depth=1 https://github.com/theos/sdks.git $THEOS/sdks_repo
+          mv $THEOS/sdks_repo/iPhoneOS14.5.sdk $THEOS/sdks/
+          
+          echo "THEOS=~/theos" >> $GITHUB_ENV
 
-      - name: Ensure GCDWebServer exists
+      - name: Inject GCDWebServer (Fix Missing Headers)
         run: |
-          if [ ! -d "GCDWebServer" ]; then
-            git clone https://github.com/swisspol/GCDWebServer.git
-          fi
+          # تحميل مكتبة السيرفر وزرعها في المشروع لتجنب خطأ Headers
+          rm -rf GCDWebServer
+          git clone --depth=1 https://github.com/swisspol/GCDWebServer.git Temp
+          mkdir -p GCDWebServer
+          cp -r Temp/GCDWebServer/Core/. GCDWebServer/
+          cp -r Temp/GCDWebServer/Requests/. GCDWebServer/
+          cp -r Temp/GCDWebServer/Responses/. GCDWebServer/
+          rm -rf Temp
 
       - name: Build Mirror Library
         run: |
+          export THEOS=~/theos
+          # تنظيف وبدء البناء النهائي
           make clean
-          make -j$(sysctl -n hw.ncpu) FINALPACKAGE=1
-        env:
-          THEOS: /opt/theos
-          Codesign: /usr/bin/true 
+          make package FINALPACKAGE=1
 
-      - name: Upload Dylib Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Dylib
-          path: .theos/obj/*/*.dylib
-
-      
+          name: WizardMirror-Final-Build
+          path: .theos/obj/WizardMirror.dylib
