@@ -10,42 +10,43 @@
 #import "GCDWebServer.h"
 #import "GCDWebServerDataResponse.h"
 
-// --- [الحل الجذري] تعريف الدوال كـ Static Weak لمنع تضارب الـ Shared Cache وقت الربط ---
+// --- [الحل الجذري] استخدام Weak Export مع رؤية افتراضية لحل مشكلة Linkage ---
 extern "C" {
-    #define WIZ_STUB __attribute__((weak)) static void
+    // تم إزالة static واستخدام visibility default لحل خطأ "weak declaration cannot have internal linkage"
+    #define WIZ_FIX __attribute__((weak)) __attribute__((visibility("default"))) void
     
-    WIZ_STUB _ZN6Wizard8Security11VerifyLocalEv() {}
-    WIZ_STUB _ZN6Wizard8Security13BypassLicenseEPKc(const char* key) {}
-    WIZ_STUB _ZN6Wizard8Security14SetPremiumModeEb(bool enabled) {}
-    WIZ_STUB _ZN6Wizard8Security15VerifySignatureEv() {}
-    WIZ_STUB _ZN6Wizard8Security11ForceSignedEb(bool en) {}
-    WIZ_STUB _ZN6Wizard8Security13SpoofAppStoreEv() {}
-    WIZ_STUB _ZN6Wizard8Security9FakeTokenEv() {}
-    WIZ_STUB _ZN6Wizard8Security15ClearDeviceIdentityEv() {}
-    WIZ_STUB _ZN6Wizard4Pool15EnableGuidelineEb(bool enable) {}
-    WIZ_STUB _ZN6Wizard4Pool11LongLineModEb(bool enable) {}
-    WIZ_STUB _ZN6Wizard4Pool16PredictCollisionEv() {}
-    WIZ_STUB _ZN6Wizard4Pool12ForceDrawRayEv() {}
-    WIZ_STUB _ZN6Wizard4Pool10SetCuePowerEf(float power) {}
-    WIZ_STUB _ZN6Wizard4Pool13ShowTableGridEb(bool enable) {}
-    WIZ_STUB _ZN6Wizard4Pool8AutoShotEv() {}
-    WIZ_STUB _ZN6Wizard4Pool10AutoQueueEv() {}
-    WIZ_STUB _ZN6Wizard8Security22KillSecurityThreadsEv() {}
-    WIZ_STUB _ZN6Wizard8Security12EnableStealthEb(bool enabled) {}
-    WIZ_STUB _ZN6Wizard8Security18DisableIntegrityEv() {}
-    WIZ_STUB _ZN6Wizard8Security15SpoofDeviceGUIDEv() {}
-    WIZ_STUB _ZN6Wizard6Memory11RemapRegionEPvm(void* addr, size_t size) {}
-    WIZ_STUB _ZN6Wizard6Memory10WriteValueEmPvm(uintptr_t addr, void* val, size_t size) {}
-    WIZ_STUB _ZN6Wizard4Core11PatchStaticEv() {}
-    WIZ_STUB _ZN6Wizard4Core7ShieldEv() {}
-    WIZ_STUB _ZN6Wizard6Bridge18InitializeRuntimeEv() {}
-    WIZ_STUB _ZN6Wizard4Data15PushOffsetTableEv() {}
-    WIZ_STUB _ZN6Wizard8Security14ValidateBinaryEv() {} 
+    WIZ_FIX _ZN6Wizard8Security11VerifyLocalEv() {}
+    WIZ_FIX _ZN6Wizard8Security13BypassLicenseEPKc(const char* key) {}
+    WIZ_FIX _ZN6Wizard8Security14SetPremiumModeEb(bool enabled) {}
+    WIZ_FIX _ZN6Wizard8Security15VerifySignatureEv() {}
+    WIZ_FIX _ZN6Wizard8Security11ForceSignedEb(bool en) {}
+    WIZ_FIX _ZN6Wizard8Security13SpoofAppStoreEv() {}
+    WIZ_FIX _ZN6Wizard8Security9FakeTokenEv() {}
+    WIZ_FIX _ZN6Wizard8Security15ClearDeviceIdentityEv() {}
+    WIZ_FIX _ZN6Wizard4Pool15EnableGuidelineEb(bool enable) {}
+    WIZ_FIX _ZN6Wizard4Pool11LongLineModEb(bool enable) {}
+    WIZ_FIX _ZN6Wizard4Pool16PredictCollisionEv() {}
+    WIZ_FIX _ZN6Wizard4Pool12ForceDrawRayEv() {}
+    WIZ_FIX _ZN6Wizard4Pool10SetCuePowerEf(float power) {}
+    WIZ_FIX _ZN6Wizard4Pool13ShowTableGridEb(bool enable) {}
+    WIZ_FIX _ZN6Wizard4Pool8AutoShotEv() {}
+    WIZ_FIX _ZN6Wizard4Pool10AutoQueueEv() {}
+    WIZ_FIX _ZN6Wizard8Security22KillSecurityThreadsEv() {}
+    WIZ_FIX _ZN6Wizard8Security12EnableStealthEb(bool enabled) {}
+    WIZ_FIX _ZN6Wizard8Security18DisableIntegrityEv() {}
+    WIZ_FIX _ZN6Wizard8Security15SpoofDeviceGUIDEv() {}
+    WIZ_FIX _ZN6Wizard6Memory11RemapRegionEPvm(void* addr, size_t size) {}
+    WIZ_FIX _ZN6Wizard6Memory10WriteValueEmPvm(uintptr_t addr, void* val, size_t size) {}
+    WIZ_FIX _ZN6Wizard4Core11PatchStaticEv() {}
+    WIZ_FIX _ZN6Wizard4Core7ShieldEv() {}
+    WIZ_FIX _ZN6Wizard6Bridge18InitializeRuntimeEv() {}
+    WIZ_FIX _ZN6Wizard4Data15PushOffsetTableEv() {}
+    WIZ_FIX _ZN6Wizard8Security14ValidateBinaryEv() {} 
     
-    __attribute__((weak)) static CFStringRef _ZN6Wizard8Security10GetFileMD5Ev() { 
+    __attribute__((weak)) __attribute__((visibility("default"))) CFStringRef _ZN6Wizard8Security10GetFileMD5Ev() { 
         return CFSTR("e99a18c428cb38d5f260853678922e03"); 
     }
-    __attribute__((weak)) static bool _ZN6Wizard8Security11IsConnectedEv() { 
+    __attribute__((weak)) __attribute__((visibility("default"))) bool _ZN6Wizard8Security11IsConnectedEv() { 
         return true; 
     }
 }
