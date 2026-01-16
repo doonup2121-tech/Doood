@@ -7,18 +7,9 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = WizardMirror
 
-# ملفات التويك + ملفات السيرفر الصح
-WizardMirror_FILES = \
-Tweak.mm \
-$(wildcard GCDWebServer/Core/*.m) \
-$(wildcard GCDWebServer/GCDWebServer/*.m)
-
-# include paths الصح
-WizardMirror_CFLAGS = \
--fobjc-arc \
--Wno-deprecated-declarations \
--IGCDWebServer/Core \
--IGCDWebServer/GCDWebServer
+# جمع كل ملفات المكتبة المسحوبة
+WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m)
+WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -IGCDWebServer
 
 WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork
 WizardMirror_LIBRARIES = substrate
