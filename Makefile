@@ -7,10 +7,11 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = WizardMirror
 
-# تأكد أن اسم الملف عندك في القائمة هو Tweak.mm
-WizardMirror_FILES = Tweak.mm
+# التعديل هنا: بنقول للمترجم ياخد كل ملفات السيرفر معاك
+WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m)
 WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork
-WizardMirror_LIBRARIES = substrate gcdwebserver
-WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
+WizardMirror_LIBRARIES = substrate
+# التعديل هنا: بنضيف مسار مجلد السيرفر عشان يشوف الـ .h
+WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -IGCDWebServer
 
 include $(THEOS)/makefiles/library.mk
