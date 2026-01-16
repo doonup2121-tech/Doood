@@ -1,17 +1,40 @@
+name: Wizard Mirror Pro Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Install Theos
         run: |
           export THEOS=~/theos
-          # تحميل ثيوس مباشرة
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
-          # تحميل الـ SDK من أضمن مستودع (theos/sdks) باستخدام رابط مباشر
+          # تحميل الـ SDK من أضمن رابط مباشر ومستقر
           mkdir -p $THEOS/sdks
           curl -L https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz -o $THEOS/sdks/iPhoneOS14.5.sdk.tar.xz
           
           # فك الضغط مع التأكد من سلامة الملف
           tar -xf $THEOS/sdks/iPhoneOS14.5.sdk.tar.xz -C $THEOS/sdks
-          
-          # مسح الملف المضغوط لتوفير المساحة
           rm $THEOS/sdks/iPhoneOS14.5.sdk.tar.xz
           
           echo "THEOS=~/theos" >> $GITHUB_ENV
+
+      - name: Build Mirror Library
+        run: |
+          export THEOS=$THEOS
+          make package FINALPACKAGE=1
+
+      - name: Upload Dylib Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WizardMirror-Final-Build
+          path: .theos/obj/WizardMirror.dylib
