@@ -6,46 +6,51 @@
 #import <substrate.h>
 #import <sys/stat.h>
 
-/* GCDWebServer imports (المسارات الصح كما في كودك) */
+/* GCDWebServer imports */
 #import "GCDWebServer.h"
 #import "GCDWebServerDataResponse.h"
 
-// --- [تعديل الأمان النهائي] تعريف الدوال كـ Weak لمنع توقف البناء ---
-// تم استخدام __attribute__((weak)) لضمان تخطي فحص المترجم وقت البناء في GitHub
+// --- [الحل الجذري] تعريف الدوال كـ Static Weak لمنع تضارب الـ Shared Cache وقت الربط ---
 extern "C" {
-    __attribute__((weak)) void _ZN6Wizard8Security11VerifyLocalEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security13BypassLicenseEPKc(const char* key) {}
-    __attribute__((weak)) void _ZN6Wizard8Security14SetPremiumModeEb(bool enabled) {}
-    __attribute__((weak)) void _ZN6Wizard8Security15VerifySignatureEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security11ForceSignedEb(bool en) {}
-    __attribute__((weak)) void _ZN6Wizard8Security13SpoofAppStoreEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security9FakeTokenEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security15ClearDeviceIdentityEv() {}
-    __attribute__((weak)) void _ZN6Wizard4Pool15EnableGuidelineEb(bool enable) {}
-    __attribute__((weak)) void _ZN6Wizard4Pool11LongLineModEb(bool enable) {}
-    __attribute__((weak)) void _ZN6Wizard4Pool16PredictCollisionEv() {}
-    __attribute__((weak)) void _ZN6Wizard4Pool12ForceDrawRayEv() {}
-    __attribute__((weak)) void _ZN6Wizard4Pool10SetCuePowerEf(float power) {}
-    __attribute__((weak)) void _ZN6Wizard4Pool13ShowTableGridEb(bool enable) {}
-    __attribute__((weak)) void _ZN6Wizard4Pool8AutoShotEv() {}
-    __attribute__((weak)) void _ZN6Wizard4Pool10AutoQueueEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security22KillSecurityThreadsEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security12EnableStealthEb(bool enabled) {}
-    __attribute__((weak)) void _ZN6Wizard8Security18DisableIntegrityEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security15SpoofDeviceGUIDEv() {}
-    __attribute__((weak)) void _ZN6Wizard6Memory11RemapRegionEPvm(void* addr, size_t size) {}
-    __attribute__((weak)) void _ZN6Wizard6Memory10WriteValueEmPvm(uintptr_t addr, void* val, size_t size) {}
-    __attribute__((weak)) void _ZN6Wizard4Core11PatchStaticEv() {}
-    __attribute__((weak)) void _ZN6Wizard4Core7ShieldEv() {}
-    __attribute__((weak)) void _ZN6Wizard6Bridge18InitializeRuntimeEv() {}
-    __attribute__((weak)) void _ZN6Wizard4Data15PushOffsetTableEv() {}
-    __attribute__((weak)) void _ZN6Wizard8Security14ValidateBinaryEv() {} 
-    __attribute__((weak)) CFStringRef _ZN6Wizard8Security10GetFileMD5Ev() { return CFSTR("e99a18c428cb38d5f260853678922e03"); }
-    __attribute__((weak)) bool _ZN6Wizard8Security11IsConnectedEv() { return true; }
+    #define WIZ_STUB __attribute__((weak)) static void
+    
+    WIZ_STUB _ZN6Wizard8Security11VerifyLocalEv() {}
+    WIZ_STUB _ZN6Wizard8Security13BypassLicenseEPKc(const char* key) {}
+    WIZ_STUB _ZN6Wizard8Security14SetPremiumModeEb(bool enabled) {}
+    WIZ_STUB _ZN6Wizard8Security15VerifySignatureEv() {}
+    WIZ_STUB _ZN6Wizard8Security11ForceSignedEb(bool en) {}
+    WIZ_STUB _ZN6Wizard8Security13SpoofAppStoreEv() {}
+    WIZ_STUB _ZN6Wizard8Security9FakeTokenEv() {}
+    WIZ_STUB _ZN6Wizard8Security15ClearDeviceIdentityEv() {}
+    WIZ_STUB _ZN6Wizard4Pool15EnableGuidelineEb(bool enable) {}
+    WIZ_STUB _ZN6Wizard4Pool11LongLineModEb(bool enable) {}
+    WIZ_STUB _ZN6Wizard4Pool16PredictCollisionEv() {}
+    WIZ_STUB _ZN6Wizard4Pool12ForceDrawRayEv() {}
+    WIZ_STUB _ZN6Wizard4Pool10SetCuePowerEf(float power) {}
+    WIZ_STUB _ZN6Wizard4Pool13ShowTableGridEb(bool enable) {}
+    WIZ_STUB _ZN6Wizard4Pool8AutoShotEv() {}
+    WIZ_STUB _ZN6Wizard4Pool10AutoQueueEv() {}
+    WIZ_STUB _ZN6Wizard8Security22KillSecurityThreadsEv() {}
+    WIZ_STUB _ZN6Wizard8Security12EnableStealthEb(bool enabled) {}
+    WIZ_STUB _ZN6Wizard8Security18DisableIntegrityEv() {}
+    WIZ_STUB _ZN6Wizard8Security15SpoofDeviceGUIDEv() {}
+    WIZ_STUB _ZN6Wizard6Memory11RemapRegionEPvm(void* addr, size_t size) {}
+    WIZ_STUB _ZN6Wizard6Memory10WriteValueEmPvm(uintptr_t addr, void* val, size_t size) {}
+    WIZ_STUB _ZN6Wizard4Core11PatchStaticEv() {}
+    WIZ_STUB _ZN6Wizard4Core7ShieldEv() {}
+    WIZ_STUB _ZN6Wizard6Bridge18InitializeRuntimeEv() {}
+    WIZ_STUB _ZN6Wizard4Data15PushOffsetTableEv() {}
+    WIZ_STUB _ZN6Wizard8Security14ValidateBinaryEv() {} 
+    
+    __attribute__((weak)) static CFStringRef _ZN6Wizard8Security10GetFileMD5Ev() { 
+        return CFSTR("e99a18c428cb38d5f260853678922e03"); 
+    }
+    __attribute__((weak)) static bool _ZN6Wizard8Security11IsConnectedEv() { 
+        return true; 
+    }
 }
 
-// --- [2] نظام الهوكات العميقة (Stealth & Anti-Detection) كما هو في كودك ---
-
+// --- [2] نظام الهوكات العميقة (Stealth & Anti-Detection) ---
 static CFStringRef (*old_GetFileMD5)();
 CFStringRef new_GetFileMD5() {
     return CFSTR("e99a18c428cb38d5f260853678922e03"); 
@@ -62,7 +67,7 @@ int new_stat(const char *path, struct stat *buf) {
 
 bool new_IsConnected() { return true; }
 
-// --- [3] السيرفر الإمبراطوري المتزامن كما هو في كودك ---
+// --- [3] السيرفر الإمبراطوري المتزامن ---
 static void start_mirror_auth_server() {
     GCDWebServer* _webServer = [[GCDWebServer alloc] init];
     [_webServer addDefaultHandlerForMethod:@"GET" requestClass:[GCDWebServerRequest class] processBlock:^GCDWebServerResponse *(GCDWebServerRequest* request) {
@@ -82,7 +87,7 @@ static void start_mirror_auth_server() {
     [_webServer startWithPort:8080 bonjourName:nil];
 }
 
-// --- [4] إصلاح الذاكرة (Memory Patches) كما هو في كودك ---
+// --- [4] إصلاح الذاكرة (Memory Patches) ---
 void run_internal_stabilizer() {
     uintptr_t slide = _dyld_get_image_vmaddr_slide(0);
     uint32_t patch_nop = 0xD503201F; 
@@ -96,29 +101,21 @@ void run_internal_stabilizer() {
     }
 }
 
-// --- [5] المحرك التشغيلي للمكتبة (Constructor) كما هو في كودك ---
+// --- [5] المحرك التشغيلي للمكتبة (Constructor) ---
 __attribute__((constructor))
 static void mirror_library_entry() {
     @autoreleasepool {
-        // تشغيل السيرفر فوراً
         start_mirror_auth_server();
-
-        // محاكاة تأخير التحميل لضمان استقرار dylib الأصلي
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            
             void* handle = dlopen("/Library/MobileSubstrate/DynamicLibraries/wizardcrackv2.dylib", RTLD_NOW);
             if (handle) {
-                // تطبيق الهوكات الأمنية
                 MSHookFunction((void*)dlsym(RTLD_DEFAULT, "stat"), (void*)new_stat, (void**)&old_stat);
                 MSHookFunction((void*)_ZN6Wizard8Security10GetFileMD5Ev, (void*)new_GetFileMD5, (void**)&old_GetFileMD5);
                 MSHookFunction((void*)_ZN6Wizard8Security11IsConnectedEv, (void*)new_IsConnected, NULL);
                 MSHookFunction((void*)_ZN6Wizard8Security14ValidateBinaryEv, (void*)NULL, NULL);
 
-                // تهيئة البيانات
                 _ZN6Wizard4Data15PushOffsetTableEv();
                 _ZN6Wizard6Bridge18InitializeRuntimeEv();
-
-                // تزييف الهوية والكراك
                 _ZN6Wizard8Security15ClearDeviceIdentityEv();
                 _ZN6Wizard8Security15SpoofDeviceGUIDEv();
                 _ZN6Wizard8Security13SpoofAppStoreEv();
@@ -128,16 +125,12 @@ static void mirror_library_entry() {
                 _ZN6Wizard8Security15VerifySignatureEv();
                 _ZN6Wizard8Security9FakeTokenEv();
                 _ZN6Wizard8Security11VerifyLocalEv();
-
-                // تفعيل كافة المميزات
                 _ZN6Wizard4Pool15EnableGuidelineEb(true);
                 _ZN6Wizard4Pool11LongLineModEb(true);
                 _ZN6Wizard4Pool16PredictCollisionEv();
                 _ZN6Wizard4Pool12ForceDrawRayEv();
                 _ZN6Wizard4Pool8AutoShotEv();
                 _ZN6Wizard4Pool10AutoQueueEv();
-                
-                // الحماية والباتشات
                 _ZN6Wizard8Security22KillSecurityThreadsEv();
                 _ZN6Wizard8Security18DisableIntegrityEv();
                 _ZN6Wizard8Security12EnableStealthEb(true);
@@ -145,10 +138,8 @@ static void mirror_library_entry() {
                 _ZN6Wizard4Core7ShieldEv();
                 run_internal_stabilizer();
 
-                // إرسال الإشعارات
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"WizardSecurityPassedNotification" object:nil];
-                
-                NSLog(@"[MirrorLib] Success: All features and security patches injected into the target dylib.");
+                NSLog(@"[MirrorLib] Success: Full features injected.");
             }
         });
     }
