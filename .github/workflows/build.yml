@@ -11,7 +11,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Theos & SDK (Stable Method)
+      - name: Install Theos & SDK (Manual Clone)
         run: |
           export THEOS=~/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
@@ -20,14 +20,16 @@ jobs:
           mv $THEOS/sdks_repo/iPhoneOS14.5.sdk $THEOS/sdks/
           echo "THEOS=~/theos" >> $GITHUB_ENV
 
-      - name: Inject GCDWebServer (Flatten Files)
+      - name: Inject GCDWebServer (Clean Fix)
         run: |
+          # تنظيف أي نسخ قديمة وتحميل السيرفر بالكامل
           rm -rf GCDWebServer
           git clone --depth=1 https://github.com/swisspol/GCDWebServer.git TempGCD
           mkdir -p GCDWebServer
-          # نقل كل ملفات الـ Header والـ Source لمجلد واحد عشان المترجم يلاقيهم فوراً
-          find TempGCD/GCDWebServer -name "*.h" -exec cp {} GCDWebServer/ \;
-          find TempGCD/GCDWebServer -name "*.m" -exec cp {} GCDWebServer/ \;
+          cp -r TempGCD/GCDWebServer/Core/. GCDWebServer/
+          # إضافة ملفات الاستجابة اللي كان بيشتكي منها
+          cp -r TempGCD/GCDWebServer/Requests/. GCDWebServer/
+          cp -r TempGCD/GCDWebServer/Responses/. GCDWebServer/
           rm -rf TempGCD
 
       - name: Build Mirror Library
@@ -39,5 +41,5 @@ jobs:
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Final-Build
+          name: WizardMirror-Ultimate-Build
           path: .theos/obj/WizardMirror.dylib

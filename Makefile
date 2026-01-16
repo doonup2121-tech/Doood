@@ -7,13 +7,11 @@ include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = WizardMirror
 
-# تعديل ذكي: جمع كل ملفات السيرفر من المجلد الرئيسي والفرعي
-WizardMirror_FILES = Tweak.mm $(wildcard GCDWebServer/*.m) $(wildcard GCDWebServer/**/*.m)
+# الحل: نجمع كل ملفات الكود (.mm و .m) في المجلد الرئيسي وفي مجلد السيرفر
+WizardMirror_FILES = $(wildcard *.mm) $(wildcard *.m) $(wildcard GCDWebServer/*.m)
 
-# تعديل المسارات: إضافة كل المجلدات لمسار البحث
-WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations \
-                      -IGCDWebServer \
-                      -I.
+# إخبار المترجم بمكان ملفات الـ Header
+WizardMirror_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -IGCDWebServer -I.
 
 WizardMirror_FRAMEWORKS = UIKit Foundation Security CFNetwork
 WizardMirror_LIBRARIES = substrate
