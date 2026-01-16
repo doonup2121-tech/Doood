@@ -11,13 +11,13 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4 # تحديث لـ v4
+        uses: actions/checkout@v4
 
       - name: Install Theos
         run: |
           export THEOS=~/theos
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
-          # حل مشكلة الـ SDK: تحميل مباشر لضمان عدم فشل السيرفر
+          # تحميل الـ SDK يدوياً لتجنب ضغط سيرفرات جيت هاب
           mkdir -p $THEOS/sdks
           curl -L https://github.com/theos/sdks/raw/master/iPhoneOS14.4.sdk.tar.xz -o $THEOS/sdks/iPhoneOS14.4.sdk.tar.xz
           tar -xf $THEOS/sdks/iPhoneOS14.4.sdk.tar.xz -C $THEOS/sdks
@@ -29,7 +29,7 @@ jobs:
           make package FINALPACKAGE=1
 
       - name: Upload Dylib Artifact
-        uses: actions/upload-artifact@v4 # تحديث لـ v4 لحل الخطأ الأحمر
+        uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Package
+          name: WizardMirror-Final-File
           path: .theos/obj/WizardMirror.dylib
