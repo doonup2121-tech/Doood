@@ -15,41 +15,32 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          # تثبيت الأدوات اللي كانت بتوقف الـ Signing وتديك Error 127
+          # تثبيت ldid للتوقيع و dpkg للتوافقية
           brew install ldid dpkg
           
       - name: Setup Theos
         run: |
           git clone --recursive https://github.com/theos/theos.git ~/theos
+          # إعداد متغيرات البيئة بشكل دائم في الـ Workflow
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
           echo "$HOME/theos/bin" >> $GITHUB_PATH
 
-      - name: Download SDK (الرابط المضمون)
+      - name: Download SDK
         run: |
-          # ده الرابط اللي بيسحب الـ SDKs كلها ومبيفشلش في التحميل
           mkdir -p ~/theos/sdks
+          # سحب الـ SDKs بشكل مباشر وسريع
           git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks_repo
-          # نقل كل ملفات الـ sdk للمكان المطلوب
           mv ~/theos/sdks_repo/*.sdk ~/theos/sdks/
           rm -rf ~/theos/sdks_repo
-
-      - name: Inject GCDWebServer
-        run: |
-          rm -rf GCDWebServer
-          git clone --depth=1 https://github.com/swisspol/GCDWebServer.git Temp
-          mkdir -p GCDWebServer
-          cp -r Temp/GCDWebServer/Core/. GCDWebServer/
-          cp -r Temp/GCDWebServer/Requests/. GCDWebServer/
-          cp -r Temp/GCDWebServer/Responses/. GCDWebServer/
-          rm -rf Temp
 
       - name: Build Mirror Library
         run: |
           export THEOS=~/theos
-          # عشان نضمن إن ldid يتشاف وقت التوقيع
-          export Codesign=$(which ldid)
+          # تحديد مسار الـ SDK اللي هنستخدمه (يفضل 14.5 للتوافقية العالية)
+          export SDKPATH=$THEOS/sdks/iPhoneOS14.5.sdk
           
           make clean
+          # إجبار التجميع كـ FINALPACKAGE لتقليل الحجم وتعطيل الـ Debug
           make FINALPACKAGE=1
         env:
           THEOS: ~/theos
@@ -57,5 +48,6 @@ jobs:
       - name: Upload Final Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WizardMirror-Final-Build
-          path: .theos/obj/*/*.dylib
+          name: WizardMaster-Dylib
+          # تعديل المسار لضمان سحب ملف الـ dylib فقط مهما كان الـ Architecture
+          path: .theos/obj/*.dylib
