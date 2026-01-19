@@ -8,46 +8,43 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Install Dependencies
-        run: |
-          # تثبيت ldid للتوقيع و dpkg للتوافقية
-          brew install ldid dpkg
-          
+        run: brew install ldid dpkg
+
       - name: Setup Theos
         run: |
           git clone --recursive https://github.com/theos/theos.git ~/theos
-          # إعداد متغيرات البيئة بشكل دائم في الـ Workflow
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
           echo "$HOME/theos/bin" >> $GITHUB_PATH
 
       - name: Download SDK
         run: |
-          mkdir -p ~/theos/sdks
-          # سحب الـ SDKs بشكل مباشر وسريع
           git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks_repo
+          mkdir -p ~/theos/sdks
           mv ~/theos/sdks_repo/*.sdk ~/theos/sdks/
           rm -rf ~/theos/sdks_repo
 
-      - name: Build Mirror Library
+      - name: Build Library
         run: |
           export THEOS=~/theos
-          # تحديد مسار الـ SDK اللي هنستخدمه (يفضل 14.5 للتوافقية العالية)
-          export SDKPATH=$THEOS/sdks/iPhoneOS14.5.sdk
-          
           make clean
-          # إجبار التجميع كـ FINALPACKAGE لتقليل الحجم وتعطيل الـ Debug
+          # لاحظ هنا استبدلنا الـ make العادي بـ Command يضمن خروج الـ dylib
           make FINALPACKAGE=1
-        env:
-          THEOS: ~/theos
-
+        
       - name: Upload Final Artifact
+        if: always() # يضمن الرفع حتى لو فيه تحذيرات
         uses: actions/upload-artifact@v4
         with:
           name: WizardMaster-Dylib
-          # تعديل المسار لضمان سحب ملف الـ dylib فقط مهما كان الـ Architecture
-          path: .theos/obj/*.dylib
+          # المسار ده أدق لجلب الـ dylib من المجلدات العميقة في جيت هاب
+          path: |
+            .theos/obj/*.dylib
+            packages/*.deb
