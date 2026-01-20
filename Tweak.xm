@@ -146,7 +146,8 @@ void dynamicEnforcementRadar() {
                     for (unsigned int j = 0; j < methodCount; j++) {
                         NSString *methodName = NSStringFromSelector(method_getName(methods[j]));
                         if ([methodName hasPrefix:@"is"] || [methodName containsString:@"check"] || [methodName containsString:@"Valid"]) {
-                            freezeMethodLogic(className, methodName);
+                            // تم تعطيل التجميد العشوائي هنا لمنع الشاشة السوداء، سيتم الحقن اليدوي في الأسفل
+                            // freezeMethodLogic(className, methodName);
                         }
                     }
                     free(methods);
@@ -287,62 +288,50 @@ void showWizardLog(NSString *message) {
 %end
 
 // ==========================================
-// --- المشيد المطور (النسخة السريعة والآمنة) ---
+// --- المشيد المطور (النسخة الجراحية لحل الشاشة السوداء) ---
 // ==========================================
 
 %ctor {
-    writeToWizardFile(@"--- STAGE 1: OBSERVATION MODE START (RADAR ARMED) ---");
+    writeToWizardFile(@"--- STAGE 1: OBSERVATION MODE START ---");
 
     dispatch_queue_t pulseQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0);
     wizard_pulse_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, pulseQueue);
     
     if (wizard_pulse_timer) {
-        // فحص كل ثانية واحدة (أسرع استجابة لتجنب الشاشة السوداء)
+        // فحص كل ثانية
         dispatch_source_set_timer(wizard_pulse_timer, dispatch_walltime(NULL, 0), 1.0 * NSEC_PER_SEC, 0.5 * NSEC_PER_SEC);
         dispatch_source_set_event_handler(wizard_pulse_timer, ^{
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 UIWindow *win = get_SafeKeyWindow();
-                // بمجرد ظهور أي واجهة (Window)، نقوم بالحقن الفوري
-                if (win && !is_environment_stable) {
+                
+                // التعديل: لا نحقن إلا بعد تأكد وجود RootViewController (الجرافيكس بدأ فعلياً)
+                if (win && win.rootViewController && !is_environment_stable) {
                     is_environment_stable = YES;
-                    writeToWizardFile(@"--- STAGE 2: FAST INJECTION DEPLOYED ---");
+                    writeToWizardFile(@"--- STAGE 2: SURGICAL INJECTION DEPLOYED ---");
                     
-                    // 1. تجميد وضع الخطر على (لا/NO) فوراً لمنع الشاشة السوداء
-                    freezeMethodLogicToFalse(@"MCActivationUtilities", @"isHRNMode");
-                    freezeMethodLogicToFalse(@"MCActivationUtilities", @"isHRNModeCache");
-
-                    // 2. تجميد "حاسة" الاتصال بالشبكة على (كاذب/NO) لإيهام المكتبة باستقرار السيرفر
-                    freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isLinkDown");
-                    freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isInvoluntaryLinkDown");
-                    
-                    // 3. تفعيل الاشتراك والرخصة
-                    freezeMethodLogic(@"MCActivationUtilities", @"isActivated");
+                    // 1. تفعيل الميزات فقط (الدوال المضمونة)
                     freezeMethodLogic(@"ALCSubscription", @"isActive");
                     freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
-
-                    // 4. تجميد بوابات التحقق الخارجية (Consent/Validator)
-                    freezeMethodLogic(@"CHBPrivacyStore", @"consentsValidator");
-                    freezeMethodLogic(@"CHBPrivacyStore", @"isConsented:");
+                    freezeMethodLogic(@"MCActivationUtilities", @"isActivated");
                     
-                    // تفعيل الرادارات
-                    dynamicEnforcementRadar();
+                    // 🛑 تم استبعاد تجميد isReady و isHRNMode هنا لأنهم سبب الشاشة السوداء.
+                    // اللعبة ستفتكر إنها مش جاهزة أو في وضع عادي فستحمل الجرافيكس طبيعي، 
+                    // وبمجرد ما تسأل عن الرخصة هتلاقينا جمدنا isActivated.
+
+                    // تفعيل الرادارات للمراقبة فقط في ملف اللوج
                     ultraWideRadar(); 
                     
-                    showWizardLog(@"Fast Crack Deployed ✅");
+                    showWizardLog(@"Surgical Fix Deployed ✅");
                 }
             });
 
             if (is_environment_stable) {
-                [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isWizardActivated"];
-                [[NSUserDefaults standardUserDefaults] synchronize];
-                
+                // استمرار اللوج لمعرفة ما يحدث في الخلفية
                 static int pulse_count = 0;
                 pulse_count++;
-                
                 if (pulse_count % 5 == 0) {
                     ultraWideRadar(); 
-                    dynamicEnforcementRadar();
                 }
             }
         });
