@@ -4,8 +4,29 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 
+// --- إضافة دالة التنبيه الإجباري (للتأكد من أن الحقن تم بنجاح) ---
+void showForcedAlert(NSString *title, NSString *msg) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive) {
+                    for (UIWindow* w in scene.windows) { if (w.isKeyWindow) { window = w; break; } }
+                }
+            }
+        }
+        if (!window) window = [UIApplication sharedApplication].keyWindow;
+
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:msg preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"تم التفعيل ✅" style:UIAlertActionStyleDefault handler:nil]];
+        
+        UIViewController *rootVC = window.rootViewController;
+        while (rootVC.presentedViewController) { rootVC = rootVC.presentedViewController; }
+        [rootVC presentViewController:alert animated:YES completion:nil];
+    });
+}
+
 // --- إضافة تقنية الاستغناء عن الرابط (Runtime Helper) ---
-// تم تعديل هذه الدالة لتجنب خطأ "deprecated" في GitHub Actions
 UIWindow* get_SafeKeyWindow() {
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
@@ -16,10 +37,9 @@ UIWindow* get_SafeKeyWindow() {
             }
         }
     }
-    return nil; // تجنب استخدام keyWindow المباشر لمنع الخطأ
+    return nil; 
 }
 
-// دالة مساعدة لإظهار رسائل الحالة (تم تعديلها لتجنب خطأ الـ Build)
 void showWizardLog(NSString *message) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIWindow *window = get_SafeKeyWindow();
@@ -128,8 +148,7 @@ void showWizardLog(NSString *message) {
 %ctor {
     NSLog(@"[WizardMaster] Injected!");
     
-    // تقنية الـ Fallback: إذا لم يتوفر المحرك (Substrate)، نقوم بالتبديل يدوياً عبر الـ Runtime
-    // هذه هي التقنية التي تجعلك تستغني عن روابط التحميل الخارجية
+    // تقنية الـ Fallback اليدوية لضمان العمل بدون Substrate
     Class rcClass = NSClassFromString(@"RCCustomerInfo");
     if (rcClass) {
         Method m = class_getInstanceMethod(rcClass, NSSelectorFromString(@"isPremium"));
@@ -142,5 +161,9 @@ void showWizardLog(NSString *message) {
 
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         showWizardLog(@"WizardMaster: Standalone Mode Active ✅");
+        // إظهار تنبيه التأكيد الإجباري بعد 4 ثوانٍ
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            showForcedAlert(@"WizardMaster", @"تم حقن المكتبة وتفعيل البريميوم بنجاح!\nلا حاجة لروابط خارجية ✅");
+        });
     }];
 }
