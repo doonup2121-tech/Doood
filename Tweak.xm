@@ -129,14 +129,13 @@ void freezeMethodLogicToFalse(NSString *className, NSString *selectorName) {
 void dynamicEnforcementRadar() {
     if (!is_environment_stable) return;
 
-    NSArray *keywords = @[@"License", @"Subscription", @"Entitlement", @"Activation", @"Premium"]; // تمت إزالة Store من الكلمات المفتاحية
+    NSArray *keywords = @[@"License", @"Subscription", @"Entitlement", @"Activation", @"Premium"]; 
     int numClasses = objc_getClassList(NULL, 0);
     if (numClasses > 0) {
         Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
         numClasses = objc_getClassList(classes, numClasses);
         for (int i = 0; i < numClasses; i++) {
             NSString *className = NSStringFromClass(classes[i]);
-            // استبعاد المتجر هنا أيضاً
             if ([className rangeOfString:@"Store" options:NSCaseInsensitiveSearch].location != NSNotFound) continue;
 
             for (NSString *key in keywords) {
@@ -256,7 +255,6 @@ void showWizardLog(NSString *message) {
 
 %hook NSUserDefaults
 - (BOOL)boolForKey:(NSString *)defaultName {
-    // لا نتدخل في القيم إلا بعد استقرار البيئة
     if (is_environment_stable) {
         if ([defaultName containsString:@"Activated"] || [defaultName containsString:@"Premium"] || [defaultName containsString:@"Session"]) return YES;
     }
@@ -289,7 +287,7 @@ void showWizardLog(NSString *message) {
 %end
 
 // ==========================================
-// --- المشيد المطور ---
+// --- المشيد المطور (النسخة السريعة والآمنة) ---
 // ==========================================
 
 %ctor {
@@ -299,36 +297,39 @@ void showWizardLog(NSString *message) {
     wizard_pulse_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, pulseQueue);
     
     if (wizard_pulse_timer) {
-        dispatch_source_set_timer(wizard_pulse_timer, dispatch_walltime(NULL, 0), 1.0 * NSEC_PER_SEC, 0.1 * NSEC_PER_SEC);
+        // فحص كل ثانية واحدة (أسرع استجابة لتجنب الشاشة السوداء)
+        dispatch_source_set_timer(wizard_pulse_timer, dispatch_walltime(NULL, 0), 1.0 * NSEC_PER_SEC, 0.5 * NSEC_PER_SEC);
         dispatch_source_set_event_handler(wizard_pulse_timer, ^{
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 UIWindow *win = get_SafeKeyWindow();
-                if (win && win.rootViewController && !is_environment_stable) {
+                // بمجرد ظهور أي واجهة (Window)، نقوم بالحقن الفوري
+                if (win && !is_environment_stable) {
                     is_environment_stable = YES;
-                    writeToWizardFile(@"--- STAGE 2: STABILITY REACHED. DEPLOYING PURE RADAR ---");
+                    writeToWizardFile(@"--- STAGE 2: FAST INJECTION DEPLOYED ---");
                     
-                    // 🆕 تنفيذ الاستنتاجات النهائية المستخرجة من التحليل فور الاستقرار:
-                    
-                    // 1. تجميد "حاسة" الاتصال بالشبكة على (كاذب/NO) لإيهام المكتبة باستقرار السيرفر
+                    // 1. تجميد وضع الخطر على (لا/NO) فوراً لمنع الشاشة السوداء
+                    freezeMethodLogicToFalse(@"MCActivationUtilities", @"isHRNMode");
+                    freezeMethodLogicToFalse(@"MCActivationUtilities", @"isHRNModeCache");
+
+                    // 2. تجميد "حاسة" الاتصال بالشبكة على (كاذب/NO) لإيهام المكتبة باستقرار السيرفر
                     freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isLinkDown");
                     freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isInvoluntaryLinkDown");
                     
-                    // 2. تجميد بوابات التحقق الخارجية (Consent/Validator)
+                    // 3. تفعيل الاشتراك والرخصة
+                    freezeMethodLogic(@"MCActivationUtilities", @"isActivated");
+                    freezeMethodLogic(@"ALCSubscription", @"isActive");
+                    freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
+
+                    // 4. تجميد بوابات التحقق الخارجية (Consent/Validator)
                     freezeMethodLogic(@"CHBPrivacyStore", @"consentsValidator");
                     freezeMethodLogic(@"CHBPrivacyStore", @"isConsented:");
                     
-                    // 3. تخطي فحص بيئة الجهاز (NetworkExtension/Hotspot)
-                    freezeMethodLogic(@"NEHotspot", @"isEnabled");
-                    
-                    // تفعيل الرادارات الأصلية
+                    // تفعيل الرادارات
                     dynamicEnforcementRadar();
                     ultraWideRadar(); 
                     
-                    // تفعيل المدير الأساسي
-                    freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
-                    
-                    showWizardLog(@"Targeting External Logic - Store Excluded ✅");
+                    showWizardLog(@"Fast Crack Deployed ✅");
                 }
             });
 
@@ -342,10 +343,6 @@ void showWizardLog(NSString *message) {
                 if (pulse_count % 5 == 0) {
                     ultraWideRadar(); 
                     dynamicEnforcementRadar();
-                }
-                
-                if (pulse_count % 10 == 0) {
-                    writeToWizardFile(@"[PULSE] Analysis Consistent - Monitoring SDKs ❤️");
                 }
             }
         });
