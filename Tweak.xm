@@ -4,7 +4,7 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <sys/stat.h>
-#import <execinfo.h> 
+#import <execinfo.h> // ضروري لتحليل الـ Backtrace
 
 // --- تعريفات النظام لتجنب أخطاء البناء ---
 #ifndef PT_DENY_ATTACH
@@ -36,7 +36,7 @@ void writeToWizardFile(NSString *text) {
     }
 }
 
-// 🆕 وظيفة الرادار الشامل: تلقط أي دالة مشبوهة في الذاكرة
+// 🆕 وظيفة الرادار الشامل: تلقط أي دالة مشبوهة في الذاكرة (تم تطويرها لتشمل البحث عن النوع)
 void ultraWideRadar() {
     // لا يعمل الرادار الفعلي إلا بعد استقرار البيئة
     if (!is_environment_stable) return;
@@ -47,21 +47,28 @@ void ultraWideRadar() {
         numClasses = objc_getClassList(classes, numClasses);
         for (int i = 0; i < numClasses; i++) {
             NSString *className = NSStringFromClass(classes[i]);
-            if ([className hasPrefix:@"NS"] || [className hasPrefix:@"UI"] || [className hasPrefix:@"_"]) continue;
+            // فحص كلاسات اللعبة فقط وتجاهل كلاسات النظام لزيادة السرعة
+            if ([className hasPrefix:@"NS"] || [className hasPrefix:@"UI"] || [className hasPrefix:@"_"] || [className hasPrefix:@"CA"]) continue;
 
             unsigned int methodCount;
             Method *methods = class_copyMethodList(classes[i], &methodCount);
             for (unsigned int j = 0; j < methodCount; j++) {
-                NSString *methodName = NSStringFromSelector(method_getName(methods[j]));
+                SEL selector = method_getName(methods[j]);
+                NSString *methodName = NSStringFromSelector(selector);
                 const char* typeEncoding = method_getTypeEncoding(methods[j]);
 
-                if (strstr(typeEncoding, "B") != NULL || [methodName containsString:@"check"] || [methodName containsString:@"verify"]) {
+                // 🆕 التطوير: لقط أي دالة تعيد BOOL (توقيعها يحتوي على B) أو تحتوي على كلمات تحكم
+                if (typeEncoding != NULL && (strstr(typeEncoding, "B") != NULL || 
+                    [methodName containsString:@"check"] || 
+                    [methodName containsString:@"verify"] || 
+                    [methodName containsString:@"valid"])) {
+                    
                     static NSMutableSet *loggedMethods;
                     if (!loggedMethods) loggedMethods = [NSMutableSet set];
-                    NSString *signature = [NSString stringWithFormat:@"%@:%@", className, methodName];
+                    NSString *signature = [NSString stringWithFormat:@"%@:%@ (%s)", className, methodName, typeEncoding];
                     
                     if (![loggedMethods containsObject:signature]) {
-                        writeToWizardFile([NSString stringWithFormat:@"[ULTRA-RADAR] Potential Target: %@", signature]);
+                        writeToWizardFile([NSString stringWithFormat:@"[ULTRA-RADAR] Found Potential Logic Gate: %@", signature]);
                         [loggedMethods addObject:signature];
                     }
                 }
@@ -245,11 +252,11 @@ void showWizardLog(NSString *message) {
 %end
 
 // ==========================================
-// --- المشيد المطور (إصدار المراقب المحايد) ---
+// --- المشيد المطور (إصدار المراقب المحايد الشامل) ---
 // ==========================================
 
 %ctor {
-    writeToWizardFile(@"--- STAGE 1: OBSERVATION MODE ACTIVE ---");
+    writeToWizardFile(@"--- STAGE 1: OBSERVATION MODE START (RADAR ARMED) ---");
 
     // نترك المكتبة تعمل في بيئة نظيفة في أول ثوانٍ
     // المشيد الآن يكتفي بفتح قناة النبض فقط
@@ -267,19 +274,18 @@ void showWizardLog(NSString *message) {
                 if (win && win.rootViewController && !is_environment_stable) {
                     
                     is_environment_stable = YES;
-                    writeToWizardFile(@"--- STAGE 2: STABILITY POINT REACHED (UI LIVE) ---");
+                    writeToWizardFile(@"--- STAGE 2: STABILITY POINT REACHED. DEPLOYING FULL RADAR ---");
                     
-                    // الآن فقط يبدأ التدخل الشامل
+                    // الآن فقط يبدأ التدخل الشامل والبحث العميق
                     dynamicEnforcementRadar();
-                    ultraWideRadar();
+                    ultraWideRadar(); 
                     freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
-                    freezeMethodLogic(@"RCCustomerInfo", @"isPremium");
                     
-                    showWizardLog(@"Stability Locked: Features Injected ✅");
+                    showWizardLog(@"Shields Active: Global Tracking Enabled ✅");
                 }
             });
 
-            // نبض المزامنة (يعمل فقط بعد الاستقرار)
+            // نبض المزامنة والرصد الدوري (يعمل فقط بعد الاستقرار)
             if (is_environment_stable) {
                 [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isWizardActivated"];
                 [[NSUserDefaults standardUserDefaults] synchronize];
@@ -287,13 +293,14 @@ void showWizardLog(NSString *message) {
                 static int pulse_count = 0;
                 pulse_count++;
                 
+                // رصد دوري لكل ما هو جديد في الذاكرة كل 5 ثوانٍ
                 if (pulse_count % 5 == 0) {
-                    ultraWideRadar();
+                    ultraWideRadar(); 
                     dynamicEnforcementRadar();
                 }
                 
                 if (pulse_count % 10 == 0) {
-                    writeToWizardFile(@"[PULSE] System Consistent & Monitoring Active ❤️");
+                    writeToWizardFile(@"[PULSE] Global Radar Active & Logic Consistent ❤️");
                 }
             }
         });
