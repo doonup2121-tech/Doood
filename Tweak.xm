@@ -4,8 +4,9 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <sys/stat.h>
+#import <sys/ptrace.h> // حل مشكلة معرف ptrace
 
-// --- دوال المساعدة (بدون تغيير) ---
+// --- دوال المساعدة ---
 void showForcedAlert(NSString *title, NSString *msg) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIWindow *window = nil;
@@ -18,7 +19,7 @@ void showForcedAlert(NSString *title, NSString *msg) {
         }
         if (!window) window = [UIApplication sharedApplication].keyWindow;
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:msg preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"تم التفعيل ✅" style:UIAlertActionStyleDefault handler:nil]];
+        [alert addAction:[UIAlertAction action_withTitle:@"تم التفعيل ✅" style:UIAlertActionStyleDefault handler:nil]];
         UIViewController *rootVC = window.rootViewController;
         while (rootVC.presentedViewController) { rootVC = rootVC.presentedViewController; }
         [rootVC presentViewController:alert animated:YES completion:nil];
@@ -71,8 +72,12 @@ void showWizardLog(NSString *message) {
     return result;
 }
 
+#ifndef PT_DENY_ATTACH
+#define PT_DENY_ATTACH 31
+#endif
+
 %hookf(int, ptrace, int request, pid_t pid, caddr_t addr, int data) {
-    if (request == 31) { 
+    if (request == PT_DENY_ATTACH) { 
         showWizardLog(@"Blocked ptrace(PT_DENY_ATTACH)");
         return 0; 
     }
@@ -111,11 +116,27 @@ void showWizardLog(NSString *message) {
 %hookf(void *, dlsym, void *handle, const char *symbol) {
     void *result = %orig;
     if (symbol && (strstr(symbol, "isActivated") || strstr(symbol, "checkLicense") || strstr(symbol, "isPremium"))) {
-        showWizardLog(@"Intercepted dlsym: %s", symbol);
+        NSString *logMessage = [NSString stringWithFormat:@"Intercepted dlsym: %s", symbol];
+        showWizardLog(logMessage);
         return (void *)objc_msgSend; 
     }
     return result;
 }
+
+// ==========================================
+// --- الطبقة الجديدة: تخطي واجهة Welcome/Key تلقائياً ---
+// ==========================================
+
+%hook UIAlertController
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    // الكشف عن نافذة طلب المفتاح من العنوان أو المحتوى
+    if ([self.title containsString:@"Welcome"] || [self.message containsString:@"key"]) {
+        showWizardLog(@"Activation Popup Detected & Bypassed ✅");
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }
+}
+%end
 
 // ==========================================
 // --- طبقة التمويه dyld وتزييف JSON ---
@@ -156,7 +177,6 @@ void showWizardLog(NSString *message) {
 %hook RCCustomerInfo
 - (BOOL)isPremium { return YES; }
 - (NSDictionary *)entitlements {
-    // حقن مصفوفة كاملة لتخطي أي حلقة فحص (Loop Check)
     return @{
         @"premium": @{@"isActive": @YES, @"periodType": @"annual", @"expiresDate": @"2099-01-01T00:00:00Z"},
         @"pro": @{@"isActive": @YES, @"expiresDate": @"2099-01-01T00:00:00Z"},
@@ -170,6 +190,7 @@ void showWizardLog(NSString *message) {
 
 %hook WizardLicenseManager 
 - (BOOL)isActivated { return YES; }
+- (BOOL)checkLicense:(id)arg1 { return YES; } // إجبار قبول أي مفتاح يدوي
 - (BOOL)isExpired { return NO; }
 - (int)licenseStatus { return 1; }
 - (id)serverDate { return [NSDate dateWithTimeIntervalSince1970:4070908800]; }
@@ -180,9 +201,8 @@ void showWizardLog(NSString *message) {
 // ==========================================
 
 %ctor {
-    NSLog(@"[WizardMaster] Local Logic Hijacking & Anti-Debug Active");
+    NSLog(@"[WizardMaster] Initializing Bypasses...");
 
-    // استبدال الدوال برمجياً لضمان ثبات القرار (Method Swizzling)
     void (^forceMemoryHook)(NSString*, NSString*) = ^(NSString* c, NSString* s) {
         Class cls = NSClassFromString(c);
         if (cls) {
@@ -195,9 +215,9 @@ void showWizardLog(NSString *message) {
     forceMemoryHook(@"WizardLicenseManager", @"isActivated");
 
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
-        showWizardLog(@"Logic Hijacked ✅");
+        showWizardLog(@"System Virtualization Active ✅");
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            showForcedAlert(@"WizardMaster", @"تم اختطاف قرار التفعيل محلياً!\nالآن يتم تجاهل ردود السيرفر السلبية ✅");
+            showForcedAlert(@"WizardMaster", @"تم تجاوز حماية المكتبة والتحقق المحلي!\nتم إخفاء نافذة طلب المفتاح تلقائياً ✅");
         });
     }];
 }
