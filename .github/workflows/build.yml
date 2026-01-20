@@ -1,45 +1,36 @@
-name: Wizard Mirror Pro Build
-
+name: WizardMasterBuild
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch: 
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-latest
-    # إضافة صلاحيات صريحة للمكتبة واللوجز
-    permissions: write-all
-
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install System Dependencies
+      - name: Setup Environment
         run: |
           brew install ldid dpkg
-          
-      - name: Setup Theos & SDK
-        run: |
-          # تنصيب ذايوس في مجلد العمل الحالي لضمان الوصول للمسارات
-          git clone --recursive https://github.com/theos/theos.git $GITHUB_WORKSPACE/theos
-          # سحب الـ SDKs
-          git clone --depth=1 https://github.com/theos/sdks.git $GITHUB_WORKSPACE/theos/sdks
-          # إعداد متغيرات البيئة للجلسة الحالية
-          echo "THEOS=$GITHUB_WORKSPACE/theos" >> $GITHUB_ENV
-          echo "$GITHUB_WORKSPACE/theos/bin" >> $GITHUB_PATH
+          git clone --recursive https://github.com/theos/theos.git ~/theos
+          git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks
+          echo "THEOS=~/theos" >> $GITHUB_ENV
+          echo "~/theos/bin" >> $GITHUB_PATH
 
-      - name: Build WizardMaster
+      - name: Verify Files
         run: |
-          # تأكد إننا بنستخدم الـ THEOS اللي عرفناه
-          export THEOS=$GITHUB_WORKSPACE/theos
-          # تنفيذ التجميع وإظهار الـ Logs في الترمينال مباشرة
+          ls -R
+          cat Makefile
+
+      - name: Build
+        run: |
+          export THEOS=~/theos
           make FINALPACKAGE=1
         
-      - name: Upload Artifact
-        if: always()
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: WizardMaster-Dylib
-          # البحث عن الـ dylib في المجلد الناتج
           path: .theos/obj/*.dylib
