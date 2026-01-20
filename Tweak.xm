@@ -4,9 +4,8 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <sys/stat.h>
-#import <execinfo.h> // ضروري لتحليل الـ Backtrace
+#import <execinfo.h>
 
-// --- تعريفات النظام لتجنب أخطاء البناء ---
 #ifndef PT_DENY_ATTACH
 #define PT_DENY_ATTACH 31
 #endif
@@ -41,20 +40,25 @@ void freezeMethodLogic(NSString *className, NSString *selectorName) {
     if (!cls) return;
     Method method = class_getInstanceMethod(cls, NSSelectorFromString(selectorName));
     if (method) {
-        // تمكين التجميد على YES (1)
-        IMP newImp = imp_implementationWithBlock(^BOOL(id self) { return YES; });
+        IMP newImp = imp_implementationWithBlock(^BOOL(id self) { 
+            // تسجيل كل مرة يتم فيها استدعاء الدالة
+            writeToWizardFile([NSString stringWithFormat:@"[ACTION] Library requested: %@ -> %@", className, selectorName]);
+            return YES; 
+        });
         class_replaceMethod(cls, NSSelectorFromString(selectorName), newImp, method_getTypeEncoding(method));
         writeToWizardFile([NSString stringWithFormat:@"[FREEZE] Permanently Locked %@:%@", className, selectorName]);
     }
 }
 
-// وظيفة إضافية للتجميد على NO (0)
 void freezeMethodLogicToFalse(NSString *className, NSString *selectorName) {
     Class cls = NSClassFromString(className);
     if (!cls) return;
     Method method = class_getInstanceMethod(cls, NSSelectorFromString(selectorName));
     if (method) {
-        IMP newImp = imp_implementationWithBlock(^BOOL(id self) { return NO; });
+        IMP newImp = imp_implementationWithBlock(^BOOL(id self) { 
+            writeToWizardFile([NSString stringWithFormat:@"[ACTION] Library requested NO: %@ -> %@", className, selectorName]);
+            return NO; 
+        });
         class_replaceMethod(cls, NSSelectorFromString(selectorName), newImp, method_getTypeEncoding(method));
         writeToWizardFile([NSString stringWithFormat:@"[FREEZE-FALSE] Locked to NO %@:%@", className, selectorName]);
     }
@@ -93,11 +97,11 @@ void showWizardLog(NSString *message) {
 }
 
 // ==========================================
-// --- درع منع الإغلاق مع تحليل المسار (Backtrace) ---
+// --- درع منع الإغلاق والمراقبة الحرجة ---
 // ==========================================
 %hook UIApplication
 - (void)terminateWithSuccess { 
-    writeToWizardFile(@"[BLOCK] App tried to terminateWithSuccess");
+    writeToWizardFile(@"[BLOCK] App tried to terminateWithSuccess()");
     return; 
 }
 %end
@@ -106,17 +110,14 @@ void showWizardLog(NSString *message) {
     void* callstack[128];
     int frames = backtrace(callstack, 128);
     char** strs = backtrace_symbols(callstack, frames);
-    
-    writeToWizardFile([NSString stringWithFormat:@"[CRITICAL] Exit(%d) called! Trace:", status]);
-    for (int i = 0; i < frames; i++) {
-        writeToWizardFile([NSString stringWithFormat:@"  - %s", strs[i]]);
-    }
+    writeToWizardFile([NSString stringWithFormat:@"[CRITICAL] exit(%d) called! Origin Trace:", status]);
+    for (int i = 0; i < frames; i++) { writeToWizardFile([NSString stringWithFormat:@"  - %s", strs[i]]); }
     free(strs);
     return; 
 }
 
 %hookf(void, abort, void) {
-    writeToWizardFile(@"[CRITICAL] Abort() called - Trace Logged");
+    writeToWizardFile(@"[CRITICAL] abort() called by Library/System");
     return; 
 }
 
@@ -142,10 +143,14 @@ void showWizardLog(NSString *message) {
 
 %hook NSUserDefaults
 - (BOOL)boolForKey:(NSString *)defaultName {
+    BOOL original = %orig;
     if (is_environment_stable) {
-        if ([defaultName containsString:@"Activated"] || [defaultName containsString:@"Premium"] || [defaultName containsString:@"Session"]) return YES;
+        if ([defaultName containsString:@"Activated"] || [defaultName containsString:@"Premium"] || [defaultName containsString:@"Session"]) {
+            writeToWizardFile([NSString stringWithFormat:@"[LOG] Preference Checked: %@ | Original: %d -> Forced: YES", defaultName, original]);
+            return YES;
+        }
     }
-    return %orig;
+    return original;
 }
 %end
 
@@ -153,8 +158,9 @@ void showWizardLog(NSString *message) {
 + (id)JSONObjectWithData:(NSData *)data options:(NSJSONReadingOptions)opt error:(NSError **)error {
     id json = %orig;
     if (is_environment_stable && [json isKindOfClass:[NSDictionary class]]) {
-        NSMutableDictionary *mJson = [json mutableCopy];
         if (json[@"subscriber"] || json[@"status"]) {
+            writeToWizardFile(@"[LOG] JSON Activation Data Modified");
+            NSMutableDictionary *mJson = [json mutableCopy];
             mJson[@"status"] = @"success";
             mJson[@"subscriber"] = @{@"entitlements": @{@"premium": @{@"isActive": @YES}}};
             return mJson;
@@ -164,21 +170,33 @@ void showWizardLog(NSString *message) {
 }
 %end
 
-%hook WizardLicenseManager 
-- (BOOL)isActivated { 
-    return is_environment_stable ? YES : %orig; 
+// مراقبة مراحل بناء كلاس الترخيص
+%hook WizardLicenseManager
+- (id)init {
+    writeToWizardFile(@"[LIFECYCLE] WizardLicenseManager instance init called");
+    return %orig;
 }
-- (int)licenseStatus { 
-    return is_environment_stable ? 1 : %orig; 
+- (BOOL)isActivated {
+    writeToWizardFile(@"[LIFECYCLE] Library checked -> isActivated");
+    return is_environment_stable ? YES : %orig;
 }
 %end
 
 // ==========================================
-// --- المشيد المطور (بدون رادار) ---
+// --- المشيد (Ctor) - عين على المكتبة ---
 // ==========================================
 
 %ctor {
-    writeToWizardFile(@"--- STAGE 1: OBSERVATION MODE START ---");
+    writeToWizardFile(@"--- BLACK-BOX LOGGING STARTED ---");
+
+    // رصد المكتبة فورياً (DYLD Check)
+    uint32_t count = _dyld_image_count();
+    for (uint32_t i = 0; i < count; i++) {
+        const char *name = _dyld_get_image_name(i);
+        if (strstr(name, "wizardcrackv2")) {
+            writeToWizardFile([NSString stringWithFormat:@"[DYLD] Library detected at: %s", name]);
+        }
+    }
 
     dispatch_queue_t pulseQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0);
     wizard_pulse_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, pulseQueue);
@@ -192,16 +210,13 @@ void showWizardLog(NSString *message) {
                 
                 if (win && win.rootViewController && !is_environment_stable) {
                     is_environment_stable = YES;
-                    writeToWizardFile(@"--- STAGE 2: SURGICAL INJECTION DEPLOYED ---");
+                    writeToWizardFile(@"--- STAGE: INJECTION DEPLOYED ---");
                     
-                    // حقن الدوال المحددة يدوياً
                     freezeMethodLogic(@"ALCSubscription", @"isActive");
                     freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
                     freezeMethodLogic(@"MCActivationUtilities", @"isActivated");
                     
-                    showWizardLog(@"Surgical Fix Deployed ✅");
-
-                    // إيقاف التايمر بعد التفعيل لتوفير الموارد بما أننا ألغينا الرادار
+                    showWizardLog(@"Monitoring Active ✅");
                     dispatch_source_cancel(wizard_pulse_timer);
                 }
             });
