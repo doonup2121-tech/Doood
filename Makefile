@@ -1,31 +1,32 @@
-# إعدادات المعمارية - arm64e ضرورية للأجهزة الحديثة
+# المعماريات المطلوبة لأجهزة آيفون الحديثة
 ARCHS = arm64 arm64e
 TARGET = iphone:clang:latest:14.0
 DEBUG = 0
 FINALPACKAGE = 1
 
-# مهم جداً للأجهزة بدون جيلبريك (وضع الجذر الحر)
+# مهم جداً للأجهزة بدون جيلبريك وتوافق ESign
 THEOS_PACKAGE_SCHEME = rootless
-
-# تجاهل فحص ملف الـ control
-CHECK_CONTROL_FILE = 0
 
 include $(THEOS)/makefiles/common.mk
 
 LIBRARY_NAME = WizardMaster
 
-# تأكد أن ملفك في GitHub اسمه Tweak.xm
+# تأكد أن اسم ملف الكود في ريبو جيت هاب هو Tweak.xm
 WizardMaster_FILES = Tweak.xm $(wildcard GCDWebServer/*.m)
 
-# أعلام التجميع ودعم الـ ARC
-WizardMaster_CFLAGS = -fobjc-arc -I./GCDWebServer
-WizardMaster_FRAMEWORKS = UIKit Security
+# الأطر البرمجية (Frameworks) اللازمة للواجهة والأمان
+WizardMaster_FRAMEWORKS = UIKit Foundation QuartzCore Security
 
-# --- إعدادات منع الكراش للأجهزة بدون جيلبريك ---
-# 1. منع المكتبة من دخول الـ Shared Cache
-# 2. تغيير مسار التثبيت ليكون بجانب ملف اللعبة (executable_path)
+# إعدادات التجميع ودعم الـ ARC
+WizardMaster_CFLAGS = -fobjc-arc -I./GCDWebServer
+
+# --- إعدادات LDFLAGS المخصصة لـ ESign و Non-Jailbreak ---
+# 1. جعل المسار نسبياً ليعمل داخل مجلد التطبيق (@executable_path)
+# 2. السماح بالبحث عن الدوال المفقودة وقت التشغيل (dynamic_lookup)
+# 3. فرض بيئة مسطحة للـ Namespaces لضمان عمل الـ Hooks
 WizardMaster_LDFLAGS = -Xlinker -not_for_dyld_shared_cache \
                        -install_name @executable_path/WizardMaster.dylib \
-                       -undefined dynamic_lookup
+                       -undefined dynamic_lookup \
+                       -force_flat_namespace
 
 include $(THEOS_MAKE_PATH)/library.mk

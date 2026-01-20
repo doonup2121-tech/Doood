@@ -4,92 +4,113 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 
-// --- طبقة الأمان: تعطيل دوال الانتحار (Anti-Kill Switch) ---
-%hookf(void, exit, int status) { return; }
-%hookf(void, abort) { return; }
-%hookf(int, kill, pid_t pid, int sig) {
-    if (pid == getpid()) return 0; 
-    return %orig;
+// دالة مساعدة لإظهار رسائل الحالة (Status Reporter)
+void showWizardLog(NSString *message) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, window.frame.size.height - 100, window.frame.size.width - 40, 40)];
+        label.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.7];
+        label.textColor = [UIColor whiteColor];
+        label.textAlignment = NSTextAlignmentCenter;
+        label.text = [NSString stringWithFormat:@"[Wizard] %@", message];
+        label.font = [UIFont boldSystemFontOfSize:12];
+        label.layer.cornerRadius = 10;
+        label.clipsToBounds = YES;
+        [window addSubview:label];
+        
+        [UIView animateWithDuration:0.5 delay:2.5 options:UIViewAnimationOptionCurveEaseOut animations:^{
+            label.alpha = 0;
+        } completion:^(BOOL finished) {
+            [label removeFromSuperview];
+        }];
+    });
 }
 
-// --- طبقة التمويه: تزييف الـ sysctl (Anti-Debugging) ---
+// --- طبقة الأمان: Anti-Kill Switch ---
+%hookf(void, exit, int status) { 
+    showWizardLog(@"Blocked Exit Attempt");
+    if (status == 0) %orig; return; 
+}
+%hookf(void, abort) { 
+    showWizardLog(@"Blocked Abort Attempt");
+    return; 
+}
+
+// --- طبقة التمويه: Anti-Debugging ---
 %hookf(int, sysctl, int *name, u_int namelen, void *info, size_t *infosize, void *newp, size_t newlen) {
     int result = %orig;
     if (namelen == 4 && name[0] == CTL_KERN && name[1] == KERN_PROC && name[2] == KERN_PROC_PID && info) {
         struct kinfo_proc *info_ptr = (struct kinfo_proc *)info;
         if (info_ptr->kp_proc.p_flag & P_TRACED) {
             info_ptr->kp_proc.p_flag &= ~P_TRACED; 
+            showWizardLog(@"Debugger Hidden (sysctl)");
         }
     }
     return result;
 }
 
-// --- طبقة الشبح: إخفاء الـ dylibs و Substrate (Anti-Detection) ---
+// --- طبقة الشبح: Anti-Detection ---
 %hookf(int, access, const char *path, int mode) {
-    if (path && (strstr(path, "MobileSubstrate") || strstr(path, "Cydia") || strstr(path, "libsubstitute"))) {
+    if (path && (strstr(path, "MobileSubstrate") || strstr(path, "Cydia"))) {
+        showWizardLog(@"Bypassed File Check");
         return -1; 
     }
     return %orig;
 }
 
-%hookf(const char *, _dyld_get_image_name, uint32_t image_index) {
-    const char *name = %orig;
-    if (name && (strstr(name, "Tweak") || strstr(name, "Substrate") || strstr(name, "WizardSilent") || strstr(name, "WizardMaster"))) {
-        return "/usr/lib/libobjc.A.dylib"; 
-    }
-    return name;
-}
-
-// --- طبقة اختراق المنطق: تفعيل البريميوم وتخطي شاشة الكود (Logic Abuse) ---
-// استهداف كلاس الـ RevenueCat الشهير وكلاسات الحماية العامة
+// --- طبقة البريميوم: Logic Abuse ---
 %hook RCCustomerInfo
-- (BOOL)isPremium { return YES; }
+- (BOOL)isPremium { 
+    showWizardLog(@"Premium: YES");
+    return YES; 
+}
 - (NSDictionary *)entitlements {
+    showWizardLog(@"Injecting Entitlements...");
     return @{
-        @"premium": @{
-            @"isActive": @YES,
-            @"periodType": @"annual",
-            @"expiresDate": @"2099-01-01T00:00:00Z"
-        }
+        @"premium": @{@"isActive": @YES, @"periodType": @"annual", @"expiresDate": @"2099-01-01T00:00:00Z"},
+        @"pro": @{@"isActive": @YES, @"expiresDate": @"2099-01-01T00:00:00Z"}
     };
 }
 %end
 
-// --- إضافة قوية: تخطي التحقق من "صحة الكود" (Validation Bypass) ---
-%hook WizardLicenseManager // افتراضاً لاسم الكلاس المسؤول عن الكود
-- (BOOL)isActivated { return YES; }
-- (BOOL)isValidLicense:(id)arg1 { return YES; }
-- (id)expirationDate { return [NSDate dateWithTimeIntervalSinceNow:315360000]; } // 10 سنوات
+%hook WizardLicenseManager 
+- (BOOL)isActivated { 
+    showWizardLog(@"Activation Bypass: OK");
+    return YES; 
+}
 %end
 
-// --- طبقة التنظيف: إخفاء واجهة المكتبة وشاشة التفعيل (UI Suppression) ---
+// --- طبقة التنظيف: UI Suppression ---
 %hook UIViewController
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     NSString *className = NSStringFromClass([self class]);
-    
-    // إذا كانت الواجهة هي واجهة تفعيل الكود، سنقوم بإخفائها فوراً والدخول للعبة
-    if ([className containsString:@"Wizard"] || 
-        [className containsString:@"Activation"] || 
-        [className containsString:@"Login"] || 
-        [className containsString:@"Subscription"]) {
-        
+    if ([className containsString:@"Wizard"] || [className containsString:@"Activation"] || [className containsString:@"Subscription"]) {
+        showWizardLog(@"Blocking Activation UI...");
         [self.view setHidden:YES];
-        // محاولة العودة للخلف أو إغلاق الواجهة المنبثقة للوصول للقائمة الرئيسية
-        [self dismissViewControllerAnimated:NO completion:nil];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self dismissViewControllerAnimated:NO completion:nil];
+            showWizardLog(@"UI Dismissed Successfully");
+        });
     }
 }
 %end
 
-// --- طبقة تخطي التمويه الديناميكي (dlsym Hook) ---
-%hookf(void *, dlsym, void *handle, const char *symbol) {
-    if (symbol && (strcmp(symbol, "ptrace") == 0 || strcmp(symbol, "sysctl") == 0)) {
-        return NULL; 
+// --- منع كشف الجيلبريك عبر الملفات ---
+%hook NSFileManager
+- (BOOL)fileExistsAtPath:(NSString *)path {
+    if ([path containsString:@"Cydia"] || [path containsString:@"apt"]) {
+        showWizardLog(@"Stealth: File Hidden");
+        return NO;
     }
     return %orig;
 }
+%end
 
-// إشعار عند التشغيل للتأكد أن المكتبة تعمل
+// إشعار البدء الرئيسي
 %ctor {
-    NSLog(@"[WizardMaster] Library Injected Successfully!");
+    NSLog(@"[WizardMaster] Injected!");
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+        showWizardLog(@"WizardMaster Loaded Successfully!");
+    }];
 }
