@@ -4,6 +4,7 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <sys/stat.h>
+#import <execinfo.h> 
 
 // --- تعريفات النظام لتجنب أخطاء البناء ---
 #ifndef PT_DENY_ATTACH
@@ -12,11 +13,12 @@
 
 extern "C" int ptrace(int request, pid_t pid, caddr_t addr, int data);
 
-// متغير عالمي لحفظ مرجع التايمر المستقل
 static dispatch_source_t wizard_pulse_timer;
+// 🆕 متغير التحكم في "نقطة التحول"
+static BOOL is_environment_stable = NO;
 
 // ==========================================
-// --- 🆕 وظيفة التسجيل في ملف (الصندوق الأسود) ---
+// --- وظيفة التسجيل في ملف ---
 // ==========================================
 void writeToWizardFile(NSString *text) {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -34,7 +36,43 @@ void writeToWizardFile(NSString *text) {
     }
 }
 
-// جديد: وظيفة فرض السيادة على الدالة (Method Hijacking)
+// 🆕 وظيفة الرادار الشامل: تلقط أي دالة مشبوهة في الذاكرة
+void ultraWideRadar() {
+    // لا يعمل الرادار الفعلي إلا بعد استقرار البيئة
+    if (!is_environment_stable) return;
+
+    int numClasses = objc_getClassList(NULL, 0);
+    if (numClasses > 0) {
+        Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
+        numClasses = objc_getClassList(classes, numClasses);
+        for (int i = 0; i < numClasses; i++) {
+            NSString *className = NSStringFromClass(classes[i]);
+            if ([className hasPrefix:@"NS"] || [className hasPrefix:@"UI"] || [className hasPrefix:@"_"]) continue;
+
+            unsigned int methodCount;
+            Method *methods = class_copyMethodList(classes[i], &methodCount);
+            for (unsigned int j = 0; j < methodCount; j++) {
+                NSString *methodName = NSStringFromSelector(method_getName(methods[j]));
+                const char* typeEncoding = method_getTypeEncoding(methods[j]);
+
+                if (strstr(typeEncoding, "B") != NULL || [methodName containsString:@"check"] || [methodName containsString:@"verify"]) {
+                    static NSMutableSet *loggedMethods;
+                    if (!loggedMethods) loggedMethods = [NSMutableSet set];
+                    NSString *signature = [NSString stringWithFormat:@"%@:%@", className, methodName];
+                    
+                    if (![loggedMethods containsObject:signature]) {
+                        writeToWizardFile([NSString stringWithFormat:@"[ULTRA-RADAR] Potential Target: %@", signature]);
+                        [loggedMethods addObject:signature];
+                    }
+                }
+            }
+            free(methods);
+        }
+        free(classes);
+    }
+}
+
+// وظيفة فرض السيادة (Method Hijacking)
 void freezeMethodLogic(NSString *className, NSString *selectorName) {
     Class cls = NSClassFromString(className);
     if (!cls) return;
@@ -46,7 +84,37 @@ void freezeMethodLogic(NSString *className, NSString *selectorName) {
     }
 }
 
-// جديد: وظيفة مسح الكلاسات للبحث عن بوابات التحقق (Radar)
+// الرادار الديناميكي (الأصلي)
+void dynamicEnforcementRadar() {
+    if (!is_environment_stable) return;
+
+    NSArray *keywords = @[@"License", @"Subscription", @"Entitlement", @"Activation", @"Premium", @"Store"];
+    int numClasses = objc_getClassList(NULL, 0);
+    if (numClasses > 0) {
+        Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
+        numClasses = objc_getClassList(classes, numClasses);
+        for (int i = 0; i < numClasses; i++) {
+            NSString *className = NSStringFromClass(classes[i]);
+            for (NSString *key in keywords) {
+                if ([className rangeOfString:key options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                    if ([className hasPrefix:@"NS"] || [className hasPrefix:@"UI"]) continue;
+                    unsigned int methodCount;
+                    Method *methods = class_copyMethodList(classes[i], &methodCount);
+                    for (unsigned int j = 0; j < methodCount; j++) {
+                        NSString *methodName = NSStringFromSelector(method_getName(methods[j]));
+                        if ([methodName hasPrefix:@"is"] || [methodName containsString:@"check"] || [methodName containsString:@"Valid"]) {
+                            freezeMethodLogic(className, methodName);
+                        }
+                    }
+                    free(methods);
+                }
+            }
+        }
+        free(classes);
+    }
+}
+
+// وظيفة مسح الكلاسات للبحث عن بوابات التحقق
 void scanClassMethods(NSString *className) {
     Class cls = NSClassFromString(className);
     if (!cls) return;
@@ -63,25 +131,6 @@ void scanClassMethods(NSString *className) {
 }
 
 // --- دوال المساعدة للواجهة ---
-void showForcedAlert(NSString *title, NSString *msg) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = nil;
-        if (@available(iOS 13.0, *)) {
-            for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
-                if (scene.activationState == UISceneActivationStateForegroundActive) {
-                    for (UIWindow* w in scene.windows) { if (w.isKeyWindow) { window = w; break; } }
-                }
-            }
-        }
-        if (!window) window = [UIApplication sharedApplication].keyWindow;
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:msg preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"استمرار ✅" style:UIAlertActionStyleDefault handler:nil]];
-        UIViewController *rootVC = window.rootViewController;
-        while (rootVC.presentedViewController) { rootVC = rootVC.presentedViewController; }
-        [rootVC presentViewController:alert animated:YES completion:nil];
-    });
-}
-
 UIWindow* get_SafeKeyWindow() {
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
@@ -114,7 +163,7 @@ void showWizardLog(NSString *message) {
 }
 
 // ==========================================
-// --- 🆕 درع منع الإغلاق القسري (Anti-Exit) ---
+// --- درع منع الإغلاق مع تحليل المسار (Backtrace) ---
 // ==========================================
 %hook UIApplication
 - (void)terminateWithSuccess { 
@@ -124,17 +173,25 @@ void showWizardLog(NSString *message) {
 %end
 
 %hookf(void, exit, int status) {
-    writeToWizardFile([NSString stringWithFormat:@"[BLOCK] System exit(%d) called", status]);
+    void* callstack[128];
+    int frames = backtrace(callstack, 128);
+    char** strs = backtrace_symbols(callstack, frames);
+    
+    writeToWizardFile([NSString stringWithFormat:@"[CRITICAL] Exit(%d) called! Trace:", status]);
+    for (int i = 0; i < frames; i++) {
+        writeToWizardFile([NSString stringWithFormat:@"  - %s", strs[i]]);
+    }
+    free(strs);
     return; 
 }
 
 %hookf(void, abort, void) {
-    writeToWizardFile(@"[BLOCK] System abort() called");
+    writeToWizardFile(@"[CRITICAL] Abort() called - Trace Logged");
     return; 
 }
 
 // ==========================================
-// --- 1️⃣ & 2️⃣: حماية البيئة وتزييف الـ Cache ---
+// --- هوكات الحماية وتزييف البيانات ---
 // ==========================================
 
 %hookf(int, sysctl, int *name, u_int namelen, void *info, size_t *infosize, void *newp, size_t newlen) {
@@ -143,7 +200,6 @@ void showWizardLog(NSString *message) {
         struct kinfo_proc *info_ptr = (struct kinfo_proc *)info;
         if (info_ptr->kp_proc.p_flag & P_TRACED) {
             info_ptr->kp_proc.p_flag &= ~P_TRACED; 
-            showWizardLog(@"Stealth: Debugger Cloaked 🛡️");
         }
     }
     return result;
@@ -154,46 +210,24 @@ void showWizardLog(NSString *message) {
     return %orig;
 }
 
-%hookf(int, access, const char *path, int mode) {
-    if (path && (strstr(path, "MobileSubstrate") || strstr(path, "Cydia") || strstr(path, ".dylib"))) return -1;
-    return %orig;
-}
-
 %hook NSUserDefaults
 - (BOOL)boolForKey:(NSString *)defaultName {
-    if ([defaultName containsString:@"Activated"] || [defaultName containsString:@"Premium"] || [defaultName containsString:@"Session"]) return YES;
-    return %orig;
-}
-- (id)objectForKey:(NSString *)defaultName {
-    if ([defaultName containsString:@"ActivationKey"] || [defaultName containsString:@"license"]) return @"WIZARD-MASTER-2099";
+    // لا نتدخل في القيم إلا بعد استقرار البيئة
+    if (is_environment_stable) {
+        if ([defaultName containsString:@"Activated"] || [defaultName containsString:@"Premium"] || [defaultName containsString:@"Session"]) return YES;
+    }
     return %orig;
 }
 %end
 
-// ==========================================
-// --- 3️⃣ & 4️⃣: اختطاف مصدر البيانات (JSON & dlsym) ---
-// ==========================================
-
-%hookf(void *, dlsym, void *handle, const char *symbol) {
-    if (symbol && (strstr(symbol, "isActivated") || strstr(symbol, "isPremium"))) {
-        showWizardLog([NSString stringWithFormat:@"Symbol Redirect: %s", symbol]);
-        return (void *)objc_msgSend; 
-    }
-    return %orig;
-}
-
 %hook NSJSONSerialization
 + (id)JSONObjectWithData:(NSData *)data options:(NSJSONReadingOptions)opt error:(NSError **)error {
     id json = %orig;
-    if ([json isKindOfClass:[NSDictionary class]]) {
+    if (is_environment_stable && [json isKindOfClass:[NSDictionary class]]) {
         NSMutableDictionary *mJson = [json mutableCopy];
-        if (json[@"subscriber"] || json[@"entitlements"] || json[@"status"] || json[@"session"]) {
-            writeToWizardFile(@"[JSON] Hijacking Security Object");
+        if (json[@"subscriber"] || json[@"status"]) {
             mJson[@"status"] = @"success";
-            mJson[@"subscriber"] = @{
-                @"entitlements": @{@"premium": @{@"isActive": @YES, @"expires_date": @"2099-01-01T00:00:00Z"}},
-                @"subscriptions": @{@"premium": @{@"isActive": @YES, @"expires_date": @"2099-01-01T00:00:00Z"}}
-            };
+            mJson[@"subscriber"] = @{@"entitlements": @{@"premium": @{@"isActive": @YES}}};
             return mJson;
         }
     }
@@ -201,120 +235,68 @@ void showWizardLog(NSString *message) {
 }
 %end
 
-// ==========================================
-// --- 5️⃣ & 6️⃣: القرار النهائي والوقت ---
-// ==========================================
-
-%hook NSDate
-+ (instancetype)date {
-    return [NSDate dateWithTimeIntervalSince1970:4070908800];
-}
-- (NSTimeInterval)timeIntervalSince1970 {
-    NSTimeInterval val = %orig;
-    if (val < 2524608000) return 4070908800; 
-    return val;
-}
-%end
-
-%hook RCCustomerInfo
-- (BOOL)isPremium { return YES; }
-- (NSDictionary *)entitlements {
-    return @{@"premium": @{@"isActive": @YES, @"expiresDate": @"2099-01-01T00:00:00Z"}};
-}
-%end
-
 %hook WizardLicenseManager 
-- (BOOL)isActivated { return YES; }
-- (BOOL)checkLicense:(id)arg1 { return YES; } 
-- (int)licenseStatus { return 1; }
-- (id)serverDate { return [NSDate date]; }
-- (int)remainingTrials { return 999; }
-- (BOOL)hasFeatureAccess:(id)arg1 { return YES; }
-%end
-
-// جديد: هوك لكلاسات الجلسة والتحقق الإضافية لمنع الإغلاق
-%hook SessionManager
-- (BOOL)isSessionValid { return YES; }
-- (BOOL)isUserSubscribed { return YES; }
-%end
-
-%hook EntitlementManager
-- (BOOL)hasEntitlement:(id)arg1 { return YES; }
-%end
-
-%hook NSObject
-- (void)setValue:(id)value forKey:(NSString *)key {
-    if ([key containsString:@"isActivated"] || [key containsString:@"premiumStatus"] || [key containsString:@"isSubscribed"]) {
-        %orig(@YES, key);
-        return;
-    }
-    %orig;
+- (BOOL)isActivated { 
+    return is_environment_stable ? YES : %orig; 
 }
-%end
-
-%hook UIAlertController
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    if ([self.title containsString:@"Welcome"] || [self.message containsString:@"key"] || [self.title containsString:@"Trial"]) {
-        [self dismissViewControllerAnimated:YES completion:nil];
-        showWizardLog(@"Activation & Session Bypass ✅");
-    }
+- (int)licenseStatus { 
+    return is_environment_stable ? 1 : %orig; 
 }
 %end
 
 // ==========================================
-// --- المشيد المطور (إصدار النبض الثابت GCD) ---
+// --- المشيد المطور (إصدار المراقب المحايد) ---
 // ==========================================
 
 %ctor {
-    writeToWizardFile(@"--- STABLE GCD SESSION START ---");
-    
-    // تشغيل الرادار
-    NSArray *classesToScan = @[@"WizardLicenseManager", @"SessionManager", @"EntitlementManager", @"AppController"];
-    for (NSString *name in classesToScan) { scanClassMethods(name); }
+    writeToWizardFile(@"--- STAGE 1: OBSERVATION MODE ACTIVE ---");
 
-    // تجميد المنطق بشكل جذري (Permanent Overrides)
-    freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
-    freezeMethodLogic(@"RCCustomerInfo", @"isPremium");
-    freezeMethodLogic(@"SessionManager", @"isSessionValid");
+    // نترك المكتبة تعمل في بيئة نظيفة في أول ثوانٍ
+    // المشيد الآن يكتفي بفتح قناة النبض فقط
 
-    // جديد: استخدام GCD Timer بدلاً من NSTimer لضمان الاستقرار في Thread الخلفية
-    dispatch_queue_t pulseQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    dispatch_queue_t pulseQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0);
     wizard_pulse_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, pulseQueue);
     
     if (wizard_pulse_timer) {
         dispatch_source_set_timer(wizard_pulse_timer, dispatch_walltime(NULL, 0), 1.0 * NSEC_PER_SEC, 0.1 * NSEC_PER_SEC);
         dispatch_source_set_event_handler(wizard_pulse_timer, ^{
-            NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-            [defaults setBool:YES forKey:@"isWizardActivated"];
-            [defaults setBool:YES forKey:@"isPremium"];
-            [defaults synchronize];
             
-            static int pulse_count = 0;
-            if (++pulse_count % 5 == 0) {
-                writeToWizardFile(@"[GCD PULSE] Heartbeat Stable ❤️");
+            // تحقق من نقطة الاستقرار (ظهور واجهة اللعبة)
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIWindow *win = get_SafeKeyWindow();
+                if (win && win.rootViewController && !is_environment_stable) {
+                    
+                    is_environment_stable = YES;
+                    writeToWizardFile(@"--- STAGE 2: STABILITY POINT REACHED (UI LIVE) ---");
+                    
+                    // الآن فقط يبدأ التدخل الشامل
+                    dynamicEnforcementRadar();
+                    ultraWideRadar();
+                    freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
+                    freezeMethodLogic(@"RCCustomerInfo", @"isPremium");
+                    
+                    showWizardLog(@"Stability Locked: Features Injected ✅");
+                }
+            });
+
+            // نبض المزامنة (يعمل فقط بعد الاستقرار)
+            if (is_environment_stable) {
+                [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isWizardActivated"];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+                
+                static int pulse_count = 0;
+                pulse_count++;
+                
+                if (pulse_count % 5 == 0) {
+                    ultraWideRadar();
+                    dynamicEnforcementRadar();
+                }
+                
+                if (pulse_count % 10 == 0) {
+                    writeToWizardFile(@"[PULSE] System Consistent & Monitoring Active ❤️");
+                }
             }
         });
         dispatch_resume(wizard_pulse_timer);
     }
-
-    void (^enforce)(NSString*, NSString*) = ^(NSString* c, NSString* s) {
-        Class cls = NSClassFromString(c);
-        if (cls) {
-            Method m = class_getInstanceMethod(cls, NSSelectorFromString(s));
-            if (m) {
-                writeToWizardFile([NSString stringWithFormat:@"[CTOR] Enforcing YES on %@:%@", c, s]);
-                class_replaceMethod(cls, NSSelectorFromString(s), imp_implementationWithBlock(^BOOL(id self){ return YES; }), method_getTypeEncoding(m));
-            }
-        }
-    };
-
-    enforce(@"WizardLicenseManager", @"isActivated");
-    enforce(@"RCCustomerInfo", @"isPremium");
-    enforce(@"GameSession", @"isValid");
-    enforce(@"SessionManager", @"isSessionValid");
-    
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        showWizardLog(@"GCD Pulse & Independence Active ✅");
-    });
 }
