@@ -31,6 +31,22 @@ void writeToWizardFile(NSString *text) {
     }
 }
 
+// جديد: وظيفة مسح الكلاسات للبحث عن بوابات التحقق (Radar)
+void scanClassMethods(NSString *className) {
+    Class cls = NSClassFromString(className);
+    if (!cls) return;
+    unsigned int methodCount;
+    Method *methods = class_copyMethodList(cls, &methodCount);
+    for (unsigned int i = 0; i < methodCount; i++) {
+        SEL selector = method_getName(methods[i]);
+        NSString *methodName = NSStringFromSelector(selector);
+        if ([methodName containsString:@"is"] || [methodName containsString:@"check"] || [methodName containsString:@"Status"]) {
+            writeToWizardFile([NSString stringWithFormat:@"[RADAR] Found in %@: %@", className, methodName]);
+        }
+    }
+    free(methods);
+}
+
 // --- دوال المساعدة للواجهة ---
 void showForcedAlert(NSString *title, NSString *msg) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -201,9 +217,19 @@ void showWizardLog(NSString *message) {
 - (BOOL)hasFeatureAccess:(id)arg1 { return YES; }
 %end
 
+// جديد: هوك لكلاسات الجلسة والتحقق الإضافية لمنع الإغلاق
+%hook SessionManager
+- (BOOL)isSessionValid { return YES; }
+- (BOOL)isUserSubscribed { return YES; }
+%end
+
+%hook EntitlementManager
+- (BOOL)hasEntitlement:(id)arg1 { return YES; }
+%end
+
 %hook NSObject
 - (void)setValue:(id)value forKey:(NSString *)key {
-    if ([key containsString:@"isActivated"] || [key containsString:@"premiumStatus"]) {
+    if ([key containsString:@"isActivated"] || [key containsString:@"premiumStatus"] || [key containsString:@"isSubscribed"]) {
         %orig(@YES, key);
         return;
     }
@@ -228,6 +254,10 @@ void showWizardLog(NSString *message) {
 %ctor {
     writeToWizardFile(@"--- NEW START: Attempting to bypass 10s loop ---");
     
+    // تشغيل الرادار على كلاسات يحتمل وجودها
+    NSArray *classesToScan = @[@"WizardLicenseManager", @"SessionManager", @"EntitlementManager", @"AppController"];
+    for (NSString *name in classesToScan) { scanClassMethods(name); }
+
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setBool:YES forKey:@"isWizardActivated"];
     [defaults setBool:YES forKey:@"isPremium"];
@@ -246,7 +276,8 @@ void showWizardLog(NSString *message) {
 
     enforce(@"WizardLicenseManager", @"isActivated");
     enforce(@"RCCustomerInfo", @"isPremium");
-    enforce(@"GameSession", @"isValid"); // إضافة استباقية للجلسة
+    enforce(@"GameSession", @"isValid");
+    enforce(@"SessionManager", @"isSessionValid");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         showWizardLog(@"Shields Up! Monitoring Loop... ✅");
