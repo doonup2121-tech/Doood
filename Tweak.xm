@@ -12,6 +12,9 @@
 
 extern "C" int ptrace(int request, pid_t pid, caddr_t addr, int data);
 
+// متغير عالمي لحفظ مرجع التايمر المستقل
+static dispatch_source_t wizard_pulse_timer;
+
 // ==========================================
 // --- 🆕 وظيفة التسجيل في ملف (الصندوق الأسود) ---
 // ==========================================
@@ -28,6 +31,18 @@ void writeToWizardFile(NSString *text) {
         [fileHandle closeFile];
     } else {
         [finalText writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    }
+}
+
+// جديد: وظيفة فرض السيادة على الدالة (Method Hijacking)
+void freezeMethodLogic(NSString *className, NSString *selectorName) {
+    Class cls = NSClassFromString(className);
+    if (!cls) return;
+    Method method = class_getInstanceMethod(cls, NSSelectorFromString(selectorName));
+    if (method) {
+        IMP newImp = imp_implementationWithBlock(^BOOL(id self) { return YES; });
+        class_replaceMethod(cls, NSSelectorFromString(selectorName), newImp, method_getTypeEncoding(method));
+        writeToWizardFile([NSString stringWithFormat:@"[FREEZE] Permanently Locked %@:%@", className, selectorName]);
     }
 }
 
@@ -248,20 +263,40 @@ void showWizardLog(NSString *message) {
 %end
 
 // ==========================================
-// --- المشيد المطور (Early Logic Hijacking) ---
+// --- المشيد المطور (إصدار النبض الثابت GCD) ---
 // ==========================================
 
 %ctor {
-    writeToWizardFile(@"--- NEW START: Attempting to bypass 10s loop ---");
+    writeToWizardFile(@"--- STABLE GCD SESSION START ---");
     
-    // تشغيل الرادار على كلاسات يحتمل وجودها
+    // تشغيل الرادار
     NSArray *classesToScan = @[@"WizardLicenseManager", @"SessionManager", @"EntitlementManager", @"AppController"];
     for (NSString *name in classesToScan) { scanClassMethods(name); }
 
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    [defaults setBool:YES forKey:@"isWizardActivated"];
-    [defaults setBool:YES forKey:@"isPremium"];
-    [defaults synchronize];
+    // تجميد المنطق بشكل جذري (Permanent Overrides)
+    freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
+    freezeMethodLogic(@"RCCustomerInfo", @"isPremium");
+    freezeMethodLogic(@"SessionManager", @"isSessionValid");
+
+    // جديد: استخدام GCD Timer بدلاً من NSTimer لضمان الاستقرار في Thread الخلفية
+    dispatch_queue_t pulseQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    wizard_pulse_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, pulseQueue);
+    
+    if (wizard_pulse_timer) {
+        dispatch_source_set_timer(wizard_pulse_timer, dispatch_walltime(NULL, 0), 1.0 * NSEC_PER_SEC, 0.1 * NSEC_PER_SEC);
+        dispatch_source_set_event_handler(wizard_pulse_timer, ^{
+            NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+            [defaults setBool:YES forKey:@"isWizardActivated"];
+            [defaults setBool:YES forKey:@"isPremium"];
+            [defaults synchronize];
+            
+            static int pulse_count = 0;
+            if (++pulse_count % 5 == 0) {
+                writeToWizardFile(@"[GCD PULSE] Heartbeat Stable ❤️");
+            }
+        });
+        dispatch_resume(wizard_pulse_timer);
+    }
 
     void (^enforce)(NSString*, NSString*) = ^(NSString* c, NSString* s) {
         Class cls = NSClassFromString(c);
@@ -280,6 +315,6 @@ void showWizardLog(NSString *message) {
     enforce(@"SessionManager", @"isSessionValid");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        showWizardLog(@"Shields Up! Monitoring Loop... ✅");
+        showWizardLog(@"GCD Pulse & Independence Active ✅");
     });
 }
