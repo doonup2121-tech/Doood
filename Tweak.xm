@@ -4,10 +4,26 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 
-// دالة مساعدة لإظهار رسائل الحالة (Status Reporter)
+// --- إضافة تقنية الاستغناء عن الرابط (Runtime Helper) ---
+UIWindow* get_SafeKeyWindow() {
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow* window in scene.windows) {
+                    if (window.isKeyWindow) return window;
+                }
+            }
+        }
+    }
+    return [UIApplication sharedApplication].keyWindow;
+}
+
+// دالة مساعدة لإظهار رسائل الحالة (تم تعديلها لتجنب خطأ الـ Build)
 void showWizardLog(NSString *message) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        UIWindow *window = get_SafeKeyWindow();
+        if (!window) return;
+        
         UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, window.frame.size.height - 100, window.frame.size.width - 40, 40)];
         label.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.7];
         label.textColor = [UIColor whiteColor];
@@ -110,7 +126,19 @@ void showWizardLog(NSString *message) {
 // إشعار البدء الرئيسي
 %ctor {
     NSLog(@"[WizardMaster] Injected!");
+    
+    // تقنية الـ Fallback: إذا لم يتوفر المحرك، نقوم بالتبديل يدوياً
+    Class rcClass = NSClassFromString(@"RCCustomerInfo");
+    if (rcClass) {
+        Method m = class_getInstanceMethod(rcClass, NSSelectorFromString(@"isPremium"));
+        if (m) {
+            class_replaceMethod(rcClass, NSSelectorFromString(@"isPremium"), imp_implementationWithBlock(^BOOL(id self) {
+                return YES;
+            }), method_getTypeEncoding(m));
+        }
+    }
+
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
-        showWizardLog(@"WizardMaster Loaded Successfully!");
+        showWizardLog(@"WizardMaster: Standalone Mode Active ✅");
     }];
 }
