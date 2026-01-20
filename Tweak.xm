@@ -32,11 +32,11 @@ void writeToWizardFile(NSString *text) {
         [fileHandle writeData:[finalText dataUsingEncoding:NSUTF8StringEncoding]];
         [fileHandle closeFile];
     } else {
-        [finalText writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        [finalText writeToFile:filePath atomically:YES encoding:UTF8StringEncoding error:nil];
     }
 }
 
-// 🆕 وظيفة الرادار المطور: يركز على المكتبات الخارجية (External SDKs)
+// 🆕 وظيفة الرادار المطور: يركز على المكتبات الخارجية (External SDKs) + استبعاد المتجر
 void ultraWideRadar() {
     // لا يعمل الرادار الفعلي إلا بعد استقرار البيئة
     if (!is_environment_stable) return;
@@ -53,6 +53,9 @@ void ultraWideRadar() {
             Class cls = classes[i];
             NSString *className = NSStringFromClass(cls);
             
+            // 🛑 فلتر استبعاد المتجر (Store) من الكلاسات
+            if ([className rangeOfString:@"Store" options:NSCaseInsensitiveSearch].location != NSNotFound) continue;
+            
             // فحص كلاسات اللعبة فقط وتجاهل كلاسات النظام لزيادة السرعة
             if ([className hasPrefix:@"NS"] || [className hasPrefix:@"UI"] || [className hasPrefix:@"_"] || [className hasPrefix:@"CA"]) continue;
 
@@ -65,6 +68,10 @@ void ultraWideRadar() {
             for (unsigned int j = 0; j < methodCount; j++) {
                 SEL selector = method_getName(methods[j]);
                 NSString *methodName = NSStringFromSelector(selector);
+                
+                // 🛑 فلتر استبعاد المتجر (Store) من الدوال
+                if ([methodName rangeOfString:@"Store" options:NSCaseInsensitiveSearch].location != NSNotFound) continue;
+
                 const char* typeEncoding = method_getTypeEncoding(methods[j]);
 
                 // لقط أي دالة تعيد BOOL (توقيعها يحتوي على B) أو تحتوي على كلمات تحكم
@@ -81,7 +88,8 @@ void ultraWideRadar() {
                     NSString *signature = [NSString stringWithFormat:@"%@ %@:%@ (%s)", originTag, className, methodName, typeEncoding];
                     
                     if (![loggedMethods containsObject:signature]) {
-                        writeToWizardFile([NSString stringWithFormat:@"[RADAR-DETECT] %@", signature]);
+                        // 🆕 هنا الرادار يكتب فقط الأهداف "الصافية" (بدون Store)
+                        writeToWizardFile([NSString stringWithFormat:@"[PURE-TARGET] %@", signature]);
                         [loggedMethods addObject:signature];
                     }
                 }
@@ -98,9 +106,22 @@ void freezeMethodLogic(NSString *className, NSString *selectorName) {
     if (!cls) return;
     Method method = class_getInstanceMethod(cls, NSSelectorFromString(selectorName));
     if (method) {
+        // تمكين التجميد على YES (1)
         IMP newImp = imp_implementationWithBlock(^BOOL(id self) { return YES; });
         class_replaceMethod(cls, NSSelectorFromString(selectorName), newImp, method_getTypeEncoding(method));
         writeToWizardFile([NSString stringWithFormat:@"[FREEZE] Permanently Locked %@:%@", className, selectorName]);
+    }
+}
+
+// 🆕 وظيفة إضافية للتجميد على NO (0) - للدوال مثل isLinkDown
+void freezeMethodLogicToFalse(NSString *className, NSString *selectorName) {
+    Class cls = NSClassFromString(className);
+    if (!cls) return;
+    Method method = class_getInstanceMethod(cls, NSSelectorFromString(selectorName));
+    if (method) {
+        IMP newImp = imp_implementationWithBlock(^BOOL(id self) { return NO; });
+        class_replaceMethod(cls, NSSelectorFromString(selectorName), newImp, method_getTypeEncoding(method));
+        writeToWizardFile([NSString stringWithFormat:@"[FREEZE-FALSE] Locked to NO %@:%@", className, selectorName]);
     }
 }
 
@@ -108,13 +129,16 @@ void freezeMethodLogic(NSString *className, NSString *selectorName) {
 void dynamicEnforcementRadar() {
     if (!is_environment_stable) return;
 
-    NSArray *keywords = @[@"License", @"Subscription", @"Entitlement", @"Activation", @"Premium", @"Store"];
+    NSArray *keywords = @[@"License", @"Subscription", @"Entitlement", @"Activation", @"Premium"]; // تمت إزالة Store من الكلمات المفتاحية
     int numClasses = objc_getClassList(NULL, 0);
     if (numClasses > 0) {
         Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
         numClasses = objc_getClassList(classes, numClasses);
         for (int i = 0; i < numClasses; i++) {
             NSString *className = NSStringFromClass(classes[i]);
+            // استبعاد المتجر هنا أيضاً
+            if ([className rangeOfString:@"Store" options:NSCaseInsensitiveSearch].location != NSNotFound) continue;
+
             for (NSString *key in keywords) {
                 if ([className rangeOfString:key options:NSCaseInsensitiveSearch].location != NSNotFound) {
                     if ([className hasPrefix:@"NS"] || [className hasPrefix:@"UI"]) continue;
@@ -282,13 +306,20 @@ void showWizardLog(NSString *message) {
                 UIWindow *win = get_SafeKeyWindow();
                 if (win && win.rootViewController && !is_environment_stable) {
                     is_environment_stable = YES;
-                    writeToWizardFile(@"--- STAGE 2: STABILITY POINT REACHED. DEPLOYING FULL RADAR ---");
+                    writeToWizardFile(@"--- STAGE 2: STABILITY REACHED. DEPLOYING PURE RADAR ---");
+                    
+                    // 🆕 تنفيذ الاستنتاجات النهائية فور الاستقرار
+                    freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isLinkDown");
+                    freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isInvoluntaryLinkDown");
+                    freezeMethodLogic(@"CHBPrivacyStore", @"consentsValidator");
+                    freezeMethodLogic(@"CHBPrivacyStore", @"isConsented:");
+                    freezeMethodLogic(@"NEHotspot", @"isEnabled");
                     
                     dynamicEnforcementRadar();
                     ultraWideRadar(); 
                     freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
                     
-                    showWizardLog(@"Shields Active: Global Tracking Enabled ✅");
+                    showWizardLog(@"Targeting External Logic - Store Excluded ✅");
                 }
             });
 
@@ -305,7 +336,7 @@ void showWizardLog(NSString *message) {
                 }
                 
                 if (pulse_count % 10 == 0) {
-                    writeToWizardFile(@"[PULSE] Global Radar Active & Logic Consistent ❤️");
+                    writeToWizardFile(@"[PULSE] Analysis Consistent - Monitoring SDKs ❤️");
                 }
             }
         });
