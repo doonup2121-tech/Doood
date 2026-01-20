@@ -8,43 +8,38 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-    permissions:
-      contents: read
-      actions: write
+    # إضافة صلاحيات صريحة للمكتبة واللوجز
+    permissions: write-all
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
-        run: brew install ldid dpkg
-
-      - name: Setup Theos
+      - name: Install System Dependencies
         run: |
-          git clone --recursive https://github.com/theos/theos.git ~/theos
-          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
-          echo "$HOME/theos/bin" >> $GITHUB_PATH
-
-      - name: Download SDK
+          brew install ldid dpkg
+          
+      - name: Setup Theos & SDK
         run: |
-          git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks_repo
-          mkdir -p ~/theos/sdks
-          mv ~/theos/sdks_repo/*.sdk ~/theos/sdks/
-          rm -rf ~/theos/sdks_repo
+          # تنصيب ذايوس في مجلد العمل الحالي لضمان الوصول للمسارات
+          git clone --recursive https://github.com/theos/theos.git $GITHUB_WORKSPACE/theos
+          # سحب الـ SDKs
+          git clone --depth=1 https://github.com/theos/sdks.git $GITHUB_WORKSPACE/theos/sdks
+          # إعداد متغيرات البيئة للجلسة الحالية
+          echo "THEOS=$GITHUB_WORKSPACE/theos" >> $GITHUB_ENV
+          echo "$GITHUB_WORKSPACE/theos/bin" >> $GITHUB_PATH
 
-      - name: Build Library
+      - name: Build WizardMaster
         run: |
-          export THEOS=~/theos
-          make clean
-          # لاحظ هنا استبدلنا الـ make العادي بـ Command يضمن خروج الـ dylib
+          # تأكد إننا بنستخدم الـ THEOS اللي عرفناه
+          export THEOS=$GITHUB_WORKSPACE/theos
+          # تنفيذ التجميع وإظهار الـ Logs في الترمينال مباشرة
           make FINALPACKAGE=1
         
-      - name: Upload Final Artifact
-        if: always() # يضمن الرفع حتى لو فيه تحذيرات
+      - name: Upload Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: WizardMaster-Dylib
-          # المسار ده أدق لجلب الـ dylib من المجلدات العميقة في جيت هاب
-          path: |
-            .theos/obj/*.dylib
-            packages/*.deb
+          # البحث عن الـ dylib في المجلد الناتج
+          path: .theos/obj/*.dylib

@@ -1,9 +1,10 @@
-Package: com.wizard.mirror
-Name: Wizard Mirror Pro
-Depends: mobilesubstrate, com.saurik.substrate.safemode
-Version: 2.0.0
+Package: com.wizard.master
+Name: WizardMaster
+Depends: mobilesubstrate
+Version: 1.0.0
 Architecture: iphoneos-arm
-Description: Absolute Mirroring for wizardcrackv2.dylib
-Maintainer: WizardMaster
-Author: WizardMaster
+Description: Ghost library for bypass and premium logic.
+Maintainer: Master
+Author: Master
 Section: Tweaks
+
