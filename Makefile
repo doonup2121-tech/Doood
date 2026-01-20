@@ -16,3 +16,4 @@ WizardMaster_FRAMEWORKS = UIKit Security
 WizardMaster_LDFLAGS = -undefined dynamic_lookup
 
 include $(THEOS_MAKE_PATH)/library.mk
+
