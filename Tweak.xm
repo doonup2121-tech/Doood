@@ -12,6 +12,25 @@
 
 extern "C" int ptrace(int request, pid_t pid, caddr_t addr, int data);
 
+// ==========================================
+// --- 🆕 وظيفة التسجيل في ملف (الصندوق الأسود) ---
+// ==========================================
+void writeToWizardFile(NSString *text) {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsDirectory = [paths objectAtIndex:0];
+    NSString *filePath = [documentsDirectory stringByAppendingPathComponent:@"Wizard_Diagnostic.txt"];
+    NSString *timestamp = [NSDateFormatter localizedStringFromDate:[NSDate date] dateStyle:NSDateFormatterNoStyle timeStyle:NSDateFormatterMediumStyle];
+    NSString *finalText = [NSString stringWithFormat:@"[%@] %@\n", timestamp, text];
+    NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:filePath];
+    if (fileHandle) {
+        [fileHandle seekToEndOfFile];
+        [fileHandle writeData:[finalText dataUsingEncoding:NSUTF8StringEncoding]];
+        [fileHandle closeFile];
+    } else {
+        [finalText writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    }
+}
+
 // --- دوال المساعدة للواجهة ---
 void showForcedAlert(NSString *title, NSString *msg) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -46,6 +65,7 @@ UIWindow* get_SafeKeyWindow() {
 }
 
 void showWizardLog(NSString *message) {
+    writeToWizardFile([NSString stringWithFormat:@"[UI LOG] %@", message]);
     dispatch_async(dispatch_get_main_queue(), ^{
         UIWindow *window = get_SafeKeyWindow();
         if (!window) return;
@@ -63,7 +83,27 @@ void showWizardLog(NSString *message) {
 }
 
 // ==========================================
-// --- 1️⃣ & 2️⃣: حماية البيئة وتزييف الـ Cache (لضمان عدم الاعتماد على State قديمة) ---
+// --- 🆕 درع منع الإغلاق القسري (Anti-Exit) ---
+// ==========================================
+%hook UIApplication
+- (void)terminateWithSuccess { 
+    writeToWizardFile(@"[BLOCK] App tried to terminateWithSuccess");
+    return; 
+}
+%end
+
+%hookf(void, exit, int status) {
+    writeToWizardFile([NSString stringWithFormat:@"[BLOCK] System exit(%d) called", status]);
+    return; 
+}
+
+%hookf(void, abort, void) {
+    writeToWizardFile(@"[BLOCK] System abort() called");
+    return; 
+}
+
+// ==========================================
+// --- 1️⃣ & 2️⃣: حماية البيئة وتزييف الـ Cache ---
 // ==========================================
 
 %hookf(int, sysctl, int *name, u_int namelen, void *info, size_t *infosize, void *newp, size_t newlen) {
@@ -88,7 +128,6 @@ void showWizardLog(NSString *message) {
     return %orig;
 }
 
-// جديد: منع المكتبة من قراءة حالة "غير مفعل" من الذاكرة الدائمة (النقطة 10)
 %hook NSUserDefaults
 - (BOOL)boolForKey:(NSString *)defaultName {
     if ([defaultName containsString:@"Activated"] || [defaultName containsString:@"Premium"] || [defaultName containsString:@"Session"]) return YES;
@@ -117,8 +156,8 @@ void showWizardLog(NSString *message) {
     id json = %orig;
     if ([json isKindOfClass:[NSDictionary class]]) {
         NSMutableDictionary *mJson = [json mutableCopy];
-        // تزييف هيكلي شامل (النقطة 11: فرض وضع الـ Online دائماً)
         if (json[@"subscriber"] || json[@"entitlements"] || json[@"status"] || json[@"session"]) {
+            writeToWizardFile(@"[JSON] Hijacking Security Object");
             mJson[@"status"] = @"success";
             mJson[@"subscriber"] = @{
                 @"entitlements": @{@"premium": @{@"isActive": @YES, @"expires_date": @"2099-01-01T00:00:00Z"}},
@@ -132,7 +171,7 @@ void showWizardLog(NSString *message) {
 %end
 
 // ==========================================
-// --- 5️⃣ & 6️⃣: القرار النهائي والوقت (The Source of Truth) ---
+// --- 5️⃣ & 6️⃣: القرار النهائي والوقت ---
 // ==========================================
 
 %hook NSDate
@@ -158,12 +197,10 @@ void showWizardLog(NSString *message) {
 - (BOOL)checkLicense:(id)arg1 { return YES; } 
 - (int)licenseStatus { return 1; }
 - (id)serverDate { return [NSDate date]; }
-// جديد: كسر الـ Hard-coded Limits (النقطة 13)
 - (int)remainingTrials { return 999; }
 - (BOOL)hasFeatureAccess:(id)arg1 { return YES; }
 %end
 
-// جديد: السيطرة على المتغيرات الداخلية (النقطة 8: Flags غير مكشوفة)
 %hook NSObject
 - (void)setValue:(id)value forKey:(NSString *)key {
     if ([key containsString:@"isActivated"] || [key containsString:@"premiumStatus"]) {
@@ -189,9 +226,8 @@ void showWizardLog(NSString *message) {
 // ==========================================
 
 %ctor {
-    NSLog(@"[WizardMaster] Universal Logic Hijacking Active.");
+    writeToWizardFile(@"--- NEW START: Attempting to bypass 10s loop ---");
     
-    // النقطة 9: كسر منطق "المرة الواحدة" بفرض الكاش مبكراً
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setBool:YES forKey:@"isWizardActivated"];
     [defaults setBool:YES forKey:@"isPremium"];
@@ -201,14 +237,18 @@ void showWizardLog(NSString *message) {
         Class cls = NSClassFromString(c);
         if (cls) {
             Method m = class_getInstanceMethod(cls, NSSelectorFromString(s));
-            if (m) class_replaceMethod(cls, NSSelectorFromString(s), imp_implementationWithBlock(^BOOL(id self){ return YES; }), method_getTypeEncoding(m));
+            if (m) {
+                writeToWizardFile([NSString stringWithFormat:@"[CTOR] Enforcing YES on %@:%@", c, s]);
+                class_replaceMethod(cls, NSSelectorFromString(s), imp_implementationWithBlock(^BOOL(id self){ return YES; }), method_getTypeEncoding(m));
+            }
         }
     };
 
     enforce(@"WizardLicenseManager", @"isActivated");
     enforce(@"RCCustomerInfo", @"isPremium");
+    enforce(@"GameSession", @"isValid"); // إضافة استباقية للجلسة
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        showWizardLog(@"Session & Limits Synchronized ✅");
+        showWizardLog(@"Shields Up! Monitoring Loop... ✅");
     });
 }
