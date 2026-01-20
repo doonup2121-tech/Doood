@@ -63,7 +63,7 @@ void showWizardLog(NSString *message) {
 }
 
 // ==========================================
-// --- 1️⃣ & 2️⃣: حماية البيئة (Anti-Debug & Jailbreak) ---
+// --- 1️⃣ & 2️⃣: حماية البيئة وتزييف الـ Cache (لضمان عدم الاعتماد على State قديمة) ---
 // ==========================================
 
 %hookf(int, sysctl, int *name, u_int namelen, void *info, size_t *infosize, void *newp, size_t newlen) {
@@ -88,6 +88,18 @@ void showWizardLog(NSString *message) {
     return %orig;
 }
 
+// جديد: منع المكتبة من قراءة حالة "غير مفعل" من الذاكرة الدائمة (النقطة 10)
+%hook NSUserDefaults
+- (BOOL)boolForKey:(NSString *)defaultName {
+    if ([defaultName containsString:@"Activated"] || [defaultName containsString:@"Premium"] || [defaultName containsString:@"Session"]) return YES;
+    return %orig;
+}
+- (id)objectForKey:(NSString *)defaultName {
+    if ([defaultName containsString:@"ActivationKey"] || [defaultName containsString:@"license"]) return @"WIZARD-MASTER-2099";
+    return %orig;
+}
+%end
+
 // ==========================================
 // --- 3️⃣ & 4️⃣: اختطاف مصدر البيانات (JSON & dlsym) ---
 // ==========================================
@@ -105,12 +117,12 @@ void showWizardLog(NSString *message) {
     id json = %orig;
     if ([json isKindOfClass:[NSDictionary class]]) {
         NSMutableDictionary *mJson = [json mutableCopy];
-        // تزييف هيكلي شامل لضمان قبول البيانات من أي سيرفر
-        if (json[@"subscriber"] || json[@"entitlements"] || json[@"status"]) {
+        // تزييف هيكلي شامل (النقطة 11: فرض وضع الـ Online دائماً)
+        if (json[@"subscriber"] || json[@"entitlements"] || json[@"status"] || json[@"session"]) {
             mJson[@"status"] = @"success";
             mJson[@"subscriber"] = @{
                 @"entitlements": @{@"premium": @{@"isActive": @YES, @"expires_date": @"2099-01-01T00:00:00Z"}},
-                @"subscriptions": @{@"premium": @{@"expires_date": @"2099-01-01T00:00:00Z"}}
+                @"subscriptions": @{@"premium": @{@"isActive": @YES, @"expires_date": @"2099-01-01T00:00:00Z"}}
             };
             return mJson;
         }
@@ -125,12 +137,10 @@ void showWizardLog(NSString *message) {
 
 %hook NSDate
 + (instancetype)date {
-    // إرجاع تاريخ ثابت (سنة 2099) لكل طلبات الوقت
     return [NSDate dateWithTimeIntervalSince1970:4070908800];
 }
 - (NSTimeInterval)timeIntervalSince1970 {
     NSTimeInterval val = %orig;
-    // أي مقارنة زمنية للتحقق من الصلاحية ستعبر دائماً
     if (val < 2524608000) return 4070908800; 
     return val;
 }
@@ -148,23 +158,45 @@ void showWizardLog(NSString *message) {
 - (BOOL)checkLicense:(id)arg1 { return YES; } 
 - (int)licenseStatus { return 1; }
 - (id)serverDate { return [NSDate date]; }
+// جديد: كسر الـ Hard-coded Limits (النقطة 13)
+- (int)remainingTrials { return 999; }
+- (BOOL)hasFeatureAccess:(id)arg1 { return YES; }
 %end
 
-// معالجة واجهة التفعيل المكتشفة في الصورة
+// جديد: السيطرة على المتغيرات الداخلية (النقطة 8: Flags غير مكشوفة)
+%hook NSObject
+- (void)setValue:(id)value forKey:(NSString *)key {
+    if ([key containsString:@"isActivated"] || [key containsString:@"premiumStatus"]) {
+        %orig(@YES, key);
+        return;
+    }
+    %orig;
+}
+%end
+
 %hook UIAlertController
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    if ([self.title containsString:@"Welcome"] || [self.message containsString:@"key"]) {
+    if ([self.title containsString:@"Welcome"] || [self.message containsString:@"key"] || [self.title containsString:@"Trial"]) {
         [self dismissViewControllerAnimated:YES completion:nil];
-        showWizardLog(@"Activation Bypass: Consistently Handled ✅");
+        showWizardLog(@"Activation & Session Bypass ✅");
     }
 }
 %end
 
+// ==========================================
+// --- المشيد المطور (Early Logic Hijacking) ---
+// ==========================================
+
 %ctor {
     NSLog(@"[WizardMaster] Universal Logic Hijacking Active.");
     
-    // فرض الهوك على مستوى الذاكرة لضمان عدم الالتفاف
+    // النقطة 9: كسر منطق "المرة الواحدة" بفرض الكاش مبكراً
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setBool:YES forKey:@"isWizardActivated"];
+    [defaults setBool:YES forKey:@"isPremium"];
+    [defaults synchronize];
+
     void (^enforce)(NSString*, NSString*) = ^(NSString* c, NSString* s) {
         Class cls = NSClassFromString(c);
         if (cls) {
@@ -175,4 +207,8 @@ void showWizardLog(NSString *message) {
 
     enforce(@"WizardLicenseManager", @"isActivated");
     enforce(@"RCCustomerInfo", @"isPremium");
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        showWizardLog(@"Session & Limits Synchronized ✅");
+    });
 }
