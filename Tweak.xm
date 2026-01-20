@@ -4,7 +4,15 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <sys/stat.h>
-#import <sys/ptrace.h> // حل مشكلة معرف ptrace
+// تم إزالة استيراد ptrace المسبب للخطأ واستبداله بتعريف داخلي أدناه
+
+// --- تعريفات النظام لتجنب أخطاء البناء (Build Fixes) ---
+#ifndef PT_DENY_ATTACH
+#define PT_DENY_ATTACH 31
+#endif
+
+// تعريف دالة ptrace يدوياً لضمان عملها حتى لو نقصت ملفات الـ SDK
+extern "C" int ptrace(int request, pid_t pid, caddr_t addr, int data);
 
 // --- دوال المساعدة ---
 void showForcedAlert(NSString *title, NSString *msg) {
@@ -19,7 +27,7 @@ void showForcedAlert(NSString *title, NSString *msg) {
         }
         if (!window) window = [UIApplication sharedApplication].keyWindow;
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:msg preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction action_withTitle:@"تم التفعيل ✅" style:UIAlertActionStyleDefault handler:nil]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"تم التفعيل ✅" style:UIAlertActionStyleDefault handler:nil]];
         UIViewController *rootVC = window.rootViewController;
         while (rootVC.presentedViewController) { rootVC = rootVC.presentedViewController; }
         [rootVC presentViewController:alert animated:YES completion:nil];
@@ -71,10 +79,6 @@ void showWizardLog(NSString *message) {
     }
     return result;
 }
-
-#ifndef PT_DENY_ATTACH
-#define PT_DENY_ATTACH 31
-#endif
 
 %hookf(int, ptrace, int request, pid_t pid, caddr_t addr, int data) {
     if (request == PT_DENY_ATTACH) { 
@@ -130,7 +134,6 @@ void showWizardLog(NSString *message) {
 %hook UIAlertController
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    // الكشف عن نافذة طلب المفتاح من العنوان أو المحتوى
     if ([self.title containsString:@"Welcome"] || [self.message containsString:@"key"]) {
         showWizardLog(@"Activation Popup Detected & Bypassed ✅");
         [self dismissViewControllerAnimated:YES completion:nil];
@@ -190,7 +193,7 @@ void showWizardLog(NSString *message) {
 
 %hook WizardLicenseManager 
 - (BOOL)isActivated { return YES; }
-- (BOOL)checkLicense:(id)arg1 { return YES; } // إجبار قبول أي مفتاح يدوي
+- (BOOL)checkLicense:(id)arg1 { return YES; } 
 - (BOOL)isExpired { return NO; }
 - (int)licenseStatus { return 1; }
 - (id)serverDate { return [NSDate dateWithTimeIntervalSince1970:4070908800]; }
