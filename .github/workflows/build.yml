@@ -1,36 +1,19 @@
-name: WizardMasterBuild
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
+name: Build
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Environment
+      - uses: actions/checkout@v4
+      - name: Build
         run: |
           brew install ldid dpkg
           git clone --recursive https://github.com/theos/theos.git ~/theos
           git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks
-          echo "THEOS=~/theos" >> $GITHUB_ENV
-          echo "~/theos/bin" >> $GITHUB_PATH
-
-      - name: Verify Files
-        run: |
-          ls -R
-          cat Makefile
-
-      - name: Build
-        run: |
           export THEOS=~/theos
+          export PATH="$THEOS/bin:$PATH"
           make FINALPACKAGE=1
-        
-      - name: Upload
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: WizardMaster-Dylib
+          name: Wizard-Dylib
           path: .theos/obj/*.dylib
