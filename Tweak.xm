@@ -36,28 +36,38 @@ void writeToWizardFile(NSString *text) {
     }
 }
 
-// 🆕 وظيفة الرادار الشامل: تلقط أي دالة مشبوهة في الذاكرة (تم تطويرها لتشمل البحث عن النوع)
+// 🆕 وظيفة الرادار المطور: يركز على المكتبات الخارجية (External SDKs)
 void ultraWideRadar() {
     // لا يعمل الرادار الفعلي إلا بعد استقرار البيئة
     if (!is_environment_stable) return;
+
+    // 1. تحديد اسم ملف اللعبة الأساسي لاستبعاده من الرصد المركز
+    const char *mainExecutablePath = _dyld_get_image_name(0);
+    NSString *mainBinaryName = [[NSString stringWithUTF8String:mainExecutablePath] lastPathComponent];
 
     int numClasses = objc_getClassList(NULL, 0);
     if (numClasses > 0) {
         Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
         numClasses = objc_getClassList(classes, numClasses);
         for (int i = 0; i < numClasses; i++) {
-            NSString *className = NSStringFromClass(classes[i]);
+            Class cls = classes[i];
+            NSString *className = NSStringFromClass(cls);
+            
             // فحص كلاسات اللعبة فقط وتجاهل كلاسات النظام لزيادة السرعة
             if ([className hasPrefix:@"NS"] || [className hasPrefix:@"UI"] || [className hasPrefix:@"_"] || [className hasPrefix:@"CA"]) continue;
 
+            // 2. الحصول على اسم المكتبة التي ينتمي إليها الكلاس
+            const char *imagePath = class_getImageName(cls);
+            NSString *libraryName = (imagePath != NULL) ? [[NSString stringWithUTF8String:imagePath] lastPathComponent] : @"Unknown";
+
             unsigned int methodCount;
-            Method *methods = class_copyMethodList(classes[i], &methodCount);
+            Method *methods = class_copyMethodList(cls, &methodCount);
             for (unsigned int j = 0; j < methodCount; j++) {
                 SEL selector = method_getName(methods[j]);
                 NSString *methodName = NSStringFromSelector(selector);
                 const char* typeEncoding = method_getTypeEncoding(methods[j]);
 
-                // 🆕 التطوير: لقط أي دالة تعيد BOOL (توقيعها يحتوي على B) أو تحتوي على كلمات تحكم
+                // لقط أي دالة تعيد BOOL (توقيعها يحتوي على B) أو تحتوي على كلمات تحكم
                 if (typeEncoding != NULL && (strstr(typeEncoding, "B") != NULL || 
                     [methodName containsString:@"check"] || 
                     [methodName containsString:@"verify"] || 
@@ -65,10 +75,13 @@ void ultraWideRadar() {
                     
                     static NSMutableSet *loggedMethods;
                     if (!loggedMethods) loggedMethods = [NSMutableSet set];
-                    NSString *signature = [NSString stringWithFormat:@"%@:%@ (%s)", className, methodName, typeEncoding];
+                    
+                    // تحديد ما إذا كانت الدالة خارجية (External SDK) أو داخلية (Main App)
+                    NSString *originTag = [libraryName isEqualToString:mainBinaryName] ? @"[APP-INTERNAL]" : [NSString stringWithFormat:@"[SDK:%@]", libraryName];
+                    NSString *signature = [NSString stringWithFormat:@"%@ %@:%@ (%s)", originTag, className, methodName, typeEncoding];
                     
                     if (![loggedMethods containsObject:signature]) {
-                        writeToWizardFile([NSString stringWithFormat:@"[ULTRA-RADAR] Found Potential Logic Gate: %@", signature]);
+                        writeToWizardFile([NSString stringWithFormat:@"[RADAR-DETECT] %@", signature]);
                         [loggedMethods addObject:signature];
                     }
                 }
@@ -252,14 +265,11 @@ void showWizardLog(NSString *message) {
 %end
 
 // ==========================================
-// --- المشيد المطور (إصدار المراقب المحايد الشامل) ---
+// --- المشيد المطور ---
 // ==========================================
 
 %ctor {
     writeToWizardFile(@"--- STAGE 1: OBSERVATION MODE START (RADAR ARMED) ---");
-
-    // نترك المكتبة تعمل في بيئة نظيفة في أول ثوانٍ
-    // المشيد الآن يكتفي بفتح قناة النبض فقط
 
     dispatch_queue_t pulseQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0);
     wizard_pulse_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, pulseQueue);
@@ -268,15 +278,12 @@ void showWizardLog(NSString *message) {
         dispatch_source_set_timer(wizard_pulse_timer, dispatch_walltime(NULL, 0), 1.0 * NSEC_PER_SEC, 0.1 * NSEC_PER_SEC);
         dispatch_source_set_event_handler(wizard_pulse_timer, ^{
             
-            // تحقق من نقطة الاستقرار (ظهور واجهة اللعبة)
             dispatch_async(dispatch_get_main_queue(), ^{
                 UIWindow *win = get_SafeKeyWindow();
                 if (win && win.rootViewController && !is_environment_stable) {
-                    
                     is_environment_stable = YES;
                     writeToWizardFile(@"--- STAGE 2: STABILITY POINT REACHED. DEPLOYING FULL RADAR ---");
                     
-                    // الآن فقط يبدأ التدخل الشامل والبحث العميق
                     dynamicEnforcementRadar();
                     ultraWideRadar(); 
                     freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
@@ -285,7 +292,6 @@ void showWizardLog(NSString *message) {
                 }
             });
 
-            // نبض المزامنة والرصد الدوري (يعمل فقط بعد الاستقرار)
             if (is_environment_stable) {
                 [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isWizardActivated"];
                 [[NSUserDefaults standardUserDefaults] synchronize];
@@ -293,7 +299,6 @@ void showWizardLog(NSString *message) {
                 static int pulse_count = 0;
                 pulse_count++;
                 
-                // رصد دوري لكل ما هو جديد في الذاكرة كل 5 ثوانٍ
                 if (pulse_count % 5 == 0) {
                     ultraWideRadar(); 
                     dynamicEnforcementRadar();
