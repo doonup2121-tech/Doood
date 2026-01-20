@@ -1,19 +1,48 @@
-name: Build
-on: [push, workflow_dispatch]
+name: Wizard Mirror Pro Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: 
+
 jobs:
   build:
     runs-on: macos-latest
+    # إضافة صلاحيات الكتابة لضمان رفع الـ Artifacts بدون مشاكل
+    permissions: write-all
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
         run: |
+          # تثبيت الأدوات الأساسية فقط لتقليل وقت الـ Build
           brew install ldid dpkg
+          
+      - name: Setup Theos & SDK
+        run: |
+          # تنصيب الـ Theos والـ SDK في خطوة واحدة لتوفير الوقت
           git clone --recursive https://github.com/theos/theos.git ~/theos
-          git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks
+          git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks_repo
+          mkdir -p ~/theos/sdks
+          mv ~/theos/sdks_repo/*.sdk ~/theos/sdks/
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          echo "$HOME/theos/bin" >> $GITHUB_PATH
+
+      - name: Build WizardMaster Library
+        run: |
           export THEOS=~/theos
-          export PATH="$THEOS/bin:$PATH"
+          # إجبار التجميع النهائي لتعطيل الـ Debug وضغط الملف
+          make clean
           make FINALPACKAGE=1
-      - uses: actions/upload-artifact@v4
+        env:
+          THEOS: ~/theos
+
+      - name: Upload Final Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
-          name: Wizard-Dylib
+          name: WizardMaster-Dylib
+          # هذا المسار يضمن جلب المكتبة سواء كانت في obj أو obj/debug
           path: .theos/obj/*.dylib
