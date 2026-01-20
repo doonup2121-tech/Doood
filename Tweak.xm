@@ -32,7 +32,7 @@ void writeToWizardFile(NSString *text) {
         [fileHandle writeData:[finalText dataUsingEncoding:NSUTF8StringEncoding]];
         [fileHandle closeFile];
     } else {
-        [finalText writeToFile:filePath atomically:YES encoding:UTF8StringEncoding error:nil];
+        [finalText writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
     }
 }
 
@@ -308,15 +308,24 @@ void showWizardLog(NSString *message) {
                     is_environment_stable = YES;
                     writeToWizardFile(@"--- STAGE 2: STABILITY REACHED. DEPLOYING PURE RADAR ---");
                     
-                    // 🆕 تنفيذ الاستنتاجات النهائية فور الاستقرار
+                    // 🆕 تنفيذ الاستنتاجات النهائية المستخرجة من التحليل فور الاستقرار:
+                    
+                    // 1. تجميد "حاسة" الاتصال بالشبكة على (كاذب/NO) لإيهام المكتبة باستقرار السيرفر
                     freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isLinkDown");
                     freezeMethodLogicToFalse(@"CWFLinkChangeStatus", @"isInvoluntaryLinkDown");
+                    
+                    // 2. تجميد بوابات التحقق الخارجية (Consent/Validator)
                     freezeMethodLogic(@"CHBPrivacyStore", @"consentsValidator");
                     freezeMethodLogic(@"CHBPrivacyStore", @"isConsented:");
+                    
+                    // 3. تخطي فحص بيئة الجهاز (NetworkExtension/Hotspot)
                     freezeMethodLogic(@"NEHotspot", @"isEnabled");
                     
+                    // تفعيل الرادارات الأصلية
                     dynamicEnforcementRadar();
                     ultraWideRadar(); 
+                    
+                    // تفعيل المدير الأساسي
                     freezeMethodLogic(@"WizardLicenseManager", @"isActivated");
                     
                     showWizardLog(@"Targeting External Logic - Store Excluded ✅");
