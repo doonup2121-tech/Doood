@@ -4,17 +4,15 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <sys/stat.h>
-// تم إزالة استيراد ptrace المسبب للخطأ واستبداله بتعريف داخلي أدناه
 
-// --- تعريفات النظام لتجنب أخطاء البناء (Build Fixes) ---
+// --- تعريفات النظام لتجنب أخطاء البناء ---
 #ifndef PT_DENY_ATTACH
 #define PT_DENY_ATTACH 31
 #endif
 
-// تعريف دالة ptrace يدوياً لضمان عملها حتى لو نقصت ملفات الـ SDK
 extern "C" int ptrace(int request, pid_t pid, caddr_t addr, int data);
 
-// --- دوال المساعدة ---
+// --- دوال المساعدة للواجهة ---
 void showForcedAlert(NSString *title, NSString *msg) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIWindow *window = nil;
@@ -27,7 +25,7 @@ void showForcedAlert(NSString *title, NSString *msg) {
         }
         if (!window) window = [UIApplication sharedApplication].keyWindow;
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:msg preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"تم التفعيل ✅" style:UIAlertActionStyleDefault handler:nil]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"استمرار ✅" style:UIAlertActionStyleDefault handler:nil]];
         UIViewController *rootVC = window.rootViewController;
         while (rootVC.presentedViewController) { rootVC = rootVC.presentedViewController; }
         [rootVC presentViewController:alert animated:YES completion:nil];
@@ -65,7 +63,7 @@ void showWizardLog(NSString *message) {
 }
 
 // ==========================================
-// --- الطبقة المحدثة: كسر حماية sysctl و ptrace (Anti-Anti-Debug) ---
+// --- 1️⃣ & 2️⃣: حماية البيئة (Anti-Debug & Jailbreak) ---
 // ==========================================
 
 %hookf(int, sysctl, int *name, u_int namelen, void *info, size_t *infosize, void *newp, size_t newlen) {
@@ -74,139 +72,100 @@ void showWizardLog(NSString *message) {
         struct kinfo_proc *info_ptr = (struct kinfo_proc *)info;
         if (info_ptr->kp_proc.p_flag & P_TRACED) {
             info_ptr->kp_proc.p_flag &= ~P_TRACED; 
-            showWizardLog(@"Debugger Stealth: Active 🛡️");
+            showWizardLog(@"Stealth: Debugger Cloaked 🛡️");
         }
     }
     return result;
 }
 
 %hookf(int, ptrace, int request, pid_t pid, caddr_t addr, int data) {
-    if (request == PT_DENY_ATTACH) { 
-        showWizardLog(@"Blocked ptrace(PT_DENY_ATTACH)");
-        return 0; 
-    }
+    if (request == PT_DENY_ATTACH) return 0; 
     return %orig;
 }
-
-// ==========================================
-// --- طبقة التزييف الكامل للملفات (Anti-Jailbreak Virtualization) ---
-// ==========================================
 
 %hookf(int, access, const char *path, int mode) {
-    if (path && (strstr(path, "MobileSubstrate") || strstr(path, "Cydia") || strstr(path, "Sileo") || strstr(path, "apt") || strstr(path, ".dylib"))) {
-        return -1;
-    }
-    return %orig;
-}
-
-%hookf(int, stat, const char *path, struct stat *buf) {
-    if (path && (strstr(path, "MobileSubstrate") || strstr(path, "Cydia") || strstr(path, "libsub") || strstr(path, "Tweak"))) {
-        return -1; 
-    }
-    return %orig;
-}
-
-%hookf(FILE *, fopen, const char *filename, const char *mode) {
-    if (filename && (strstr(filename, "MobileSubstrate") || strstr(filename, "Tweak"))) {
-        return NULL; 
-    }
+    if (path && (strstr(path, "MobileSubstrate") || strstr(path, "Cydia") || strstr(path, ".dylib"))) return -1;
     return %orig;
 }
 
 // ==========================================
-// --- طبقة صيد الدوال الديناميكية و dlsym ---
+// --- 3️⃣ & 4️⃣: اختطاف مصدر البيانات (JSON & dlsym) ---
 // ==========================================
 
 %hookf(void *, dlsym, void *handle, const char *symbol) {
-    void *result = %orig;
-    if (symbol && (strstr(symbol, "isActivated") || strstr(symbol, "checkLicense") || strstr(symbol, "isPremium"))) {
-        NSString *logMessage = [NSString stringWithFormat:@"Intercepted dlsym: %s", symbol];
-        showWizardLog(logMessage);
+    if (symbol && (strstr(symbol, "isActivated") || strstr(symbol, "isPremium"))) {
+        showWizardLog([NSString stringWithFormat:@"Symbol Redirect: %s", symbol]);
         return (void *)objc_msgSend; 
     }
-    return result;
-}
-
-// ==========================================
-// --- الطبقة الجديدة: تخطي واجهة Welcome/Key تلقائياً ---
-// ==========================================
-
-%hook UIAlertController
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    if ([self.title containsString:@"Welcome"] || [self.message containsString:@"key"]) {
-        showWizardLog(@"Activation Popup Detected & Bypassed ✅");
-        [self dismissViewControllerAnimated:YES completion:nil];
-    }
-}
-%end
-
-// ==========================================
-// --- طبقة التمويه dyld وتزييف JSON ---
-// ==========================================
-
-%hookf(uint32_t, _dyld_image_count) { return %orig - 1; }
-%hookf(const char *, _dyld_get_image_name, uint32_t image_index) {
-    const char *name = %orig;
-    if (name && (strstr(name, "WizardMaster") || strstr(name, "Substrate") || strstr(name, "Tweak"))) {
-        return "/usr/lib/libobjc.A.dylib"; 
-    }
-    return name;
+    return %orig;
 }
 
 %hook NSJSONSerialization
 + (id)JSONObjectWithData:(NSData *)data options:(NSJSONReadingOptions)opt error:(NSError **)error {
     id json = %orig;
-    if ([json isKindOfClass:[NSDictionary class]] && (json[@"subscriber"] || json[@"entitlements"])) {
+    if ([json isKindOfClass:[NSDictionary class]]) {
         NSMutableDictionary *mJson = [json mutableCopy];
-        mJson[@"subscriber"] = @{@"entitlements": @{@"premium": @{@"isActive": @YES, @"expires_date": @"2099-01-01T00:00:00Z"}}};
-        return mJson;
+        // تزييف هيكلي شامل لضمان قبول البيانات من أي سيرفر
+        if (json[@"subscriber"] || json[@"entitlements"] || json[@"status"]) {
+            mJson[@"status"] = @"success";
+            mJson[@"subscriber"] = @{
+                @"entitlements": @{@"premium": @{@"isActive": @YES, @"expires_date": @"2099-01-01T00:00:00Z"}},
+                @"subscriptions": @{@"premium": @{@"expires_date": @"2099-01-01T00:00:00Z"}}
+            };
+            return mJson;
+        }
     }
     return json;
 }
 %end
 
 // ==========================================
-// --- كسر الوقت والمميزات والمنطق (Decision Hijacking) ---
+// --- 5️⃣ & 6️⃣: القرار النهائي والوقت (The Source of Truth) ---
 // ==========================================
 
 %hook NSDate
-+ (instancetype)dateWithTimeIntervalSince1970:(NSTimeInterval)secs {
-    if (secs < 2524608000) return %orig(4070908800); 
-    return %orig;
++ (instancetype)date {
+    // إرجاع تاريخ ثابت (سنة 2099) لكل طلبات الوقت
+    return [NSDate dateWithTimeIntervalSince1970:4070908800];
+}
+- (NSTimeInterval)timeIntervalSince1970 {
+    NSTimeInterval val = %orig;
+    // أي مقارنة زمنية للتحقق من الصلاحية ستعبر دائماً
+    if (val < 2524608000) return 4070908800; 
+    return val;
 }
 %end
 
 %hook RCCustomerInfo
 - (BOOL)isPremium { return YES; }
 - (NSDictionary *)entitlements {
-    return @{
-        @"premium": @{@"isActive": @YES, @"periodType": @"annual", @"expiresDate": @"2099-01-01T00:00:00Z"},
-        @"pro": @{@"isActive": @YES, @"expiresDate": @"2099-01-01T00:00:00Z"},
-        @"all_access": @{@"isActive": @YES, @"expiresDate": @"2099-01-01T00:00:00Z"}
-    };
-}
-- (id)expirationDateForEntitlement:(NSString *)entitlement {
-    return [NSDate dateWithTimeIntervalSince1970:4070908800];
+    return @{@"premium": @{@"isActive": @YES, @"expiresDate": @"2099-01-01T00:00:00Z"}};
 }
 %end
 
 %hook WizardLicenseManager 
 - (BOOL)isActivated { return YES; }
 - (BOOL)checkLicense:(id)arg1 { return YES; } 
-- (BOOL)isExpired { return NO; }
 - (int)licenseStatus { return 1; }
-- (id)serverDate { return [NSDate dateWithTimeIntervalSince1970:4070908800]; }
+- (id)serverDate { return [NSDate date]; }
 %end
 
-// ==========================================
-// --- المشيد الرئيسي (The Constructor) ---
-// ==========================================
+// معالجة واجهة التفعيل المكتشفة في الصورة
+%hook UIAlertController
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    if ([self.title containsString:@"Welcome"] || [self.message containsString:@"key"]) {
+        [self dismissViewControllerAnimated:YES completion:nil];
+        showWizardLog(@"Activation Bypass: Consistently Handled ✅");
+    }
+}
+%end
 
 %ctor {
-    NSLog(@"[WizardMaster] Initializing Bypasses...");
-
-    void (^forceMemoryHook)(NSString*, NSString*) = ^(NSString* c, NSString* s) {
+    NSLog(@"[WizardMaster] Universal Logic Hijacking Active.");
+    
+    // فرض الهوك على مستوى الذاكرة لضمان عدم الالتفاف
+    void (^enforce)(NSString*, NSString*) = ^(NSString* c, NSString* s) {
         Class cls = NSClassFromString(c);
         if (cls) {
             Method m = class_getInstanceMethod(cls, NSSelectorFromString(s));
@@ -214,13 +173,6 @@ void showWizardLog(NSString *message) {
         }
     };
 
-    forceMemoryHook(@"RCCustomerInfo", @"isPremium");
-    forceMemoryHook(@"WizardLicenseManager", @"isActivated");
-
-    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
-        showWizardLog(@"System Virtualization Active ✅");
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            showForcedAlert(@"WizardMaster", @"تم تجاوز حماية المكتبة والتحقق المحلي!\nتم إخفاء نافذة طلب المفتاح تلقائياً ✅");
-        });
-    }];
+    enforce(@"WizardLicenseManager", @"isActivated");
+    enforce(@"RCCustomerInfo", @"isPremium");
 }
