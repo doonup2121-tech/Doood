@@ -5,6 +5,7 @@
 #import <objc/runtime.h>
 
 // --- إضافة تقنية الاستغناء عن الرابط (Runtime Helper) ---
+// تم تعديل هذه الدالة لتجنب خطأ "deprecated" في GitHub Actions
 UIWindow* get_SafeKeyWindow() {
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
@@ -15,7 +16,7 @@ UIWindow* get_SafeKeyWindow() {
             }
         }
     }
-    return [UIApplication sharedApplication].keyWindow;
+    return nil; // تجنب استخدام keyWindow المباشر لمنع الخطأ
 }
 
 // دالة مساعدة لإظهار رسائل الحالة (تم تعديلها لتجنب خطأ الـ Build)
@@ -127,7 +128,8 @@ void showWizardLog(NSString *message) {
 %ctor {
     NSLog(@"[WizardMaster] Injected!");
     
-    // تقنية الـ Fallback: إذا لم يتوفر المحرك، نقوم بالتبديل يدوياً
+    // تقنية الـ Fallback: إذا لم يتوفر المحرك (Substrate)، نقوم بالتبديل يدوياً عبر الـ Runtime
+    // هذه هي التقنية التي تجعلك تستغني عن روابط التحميل الخارجية
     Class rcClass = NSClassFromString(@"RCCustomerInfo");
     if (rcClass) {
         Method m = class_getInstanceMethod(rcClass, NSSelectorFromString(@"isPremium"));
